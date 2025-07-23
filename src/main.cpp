@@ -1,138 +1,199 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include "SparkFun_SCD30_Arduino_Library.h"
 
-// Include the module headers
-#include "Bluetooth.h"
-#include "SensorCO2.h"
-// #include "CCS811Sensor.h"
-//#include "Display.h"
+SCD30 airSensor;
 
-// Define pin connections for E-Ink Display
-#define EPD_CS     5    // Chip Select
-#define EPD_DC     33   // Data/Command Control
-#define EPD_RST    25   // Reset
-#define EPD_BUSY   4    // Busy Indicator
+// Pin definitions
+#define SDA_PIN 21
+#define SCL_PIN 22
+#define READY_PIN 19  // Optional: SCD30 data ready pin
 
-// Define LED pin (optional)
-#define STATUS_LED 2
+// Measurement intervals
+#define MEASUREMENT_INTERVAL 2  // seconds
+#define SERIAL_BAUD 9600
 
-// Instantiate modules
-Bluetooth bluetooth("CoToMeter");
-SensorCO2 sensor;
-//Display display(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY);
-// CCS811Sensor ccs811; // Instantiate CCS811Sensor
+// Variables for data tracking
+unsigned long lastMeasurement = 0;
+bool sensorInitialized = false;
 
 void setup() {
-    // Initialize Serial Monitor
-    Serial.begin(9600);
-    while (!Serial) {
-        ; // Wait for serial port to connect (only necessary for native USB)
+    Serial.begin(SERIAL_BAUD);
+    delay(1000);  // Give serial time to initialize
+    
+    Serial.println();
+    Serial.println("🐱==================================🐱");
+    Serial.println("      CoToMeter Starting Up!        ");
+    Serial.println("🐱==================================🐱");
+    
+    // Initialize I2C
+    Wire.begin(SDA_PIN, SCL_PIN);
+    // Wire.setClock(50000);  // 50kHz for better reliability
+    
+    Serial.print("🔍 Searching for SCD30 sensor...");
+    
+    // Try to initialize SCD30
+    if (airSensor.begin() == false) {
+        Serial.println(" ❌ FAILED");
+        Serial.println("💀 SCD30 not detected!");
+        Serial.println("🔧 Check wiring:");
+        Serial.println("   VDD -> 3.3V or 5V");
+        Serial.println("   GND -> GND");
+        Serial.println("   SCL -> GPIO22");
+        Serial.println("   SDA -> GPIO21");
+        
+        while(1) {
+            delay(1000);
+            Serial.print(".");
+        }
     }
-    delay(5000);
-    Serial.println("CoToMeter Initialization Started");
-
-    // Initialize I2C (Wire) on GPIO 21 (SDA) and GPIO 22 (SCL)
-    Wire.begin(21, 22);
-    Serial.println("I2C Initialized");
-
-    // Initialize the built-in LED pin as an output (optional)
-    pinMode(STATUS_LED, OUTPUT);
-    digitalWrite(STATUS_LED, LOW); // Turn LED off initially
-    Serial.println("Status LED Initialized");
-
-    // Initialize Sensor
-    if (sensor.begin()) {
-        sensor.setMeasurementInterval(5); // Set to 5 seconds
-        sensor.enableAutoSelfCalibration(true);
+    
+    Serial.println(" ✅ SUCCESS");
+    Serial.println("🎉 SCD30 sensor connected!");
+    
+    // Configure sensor settings
+    Serial.println("⚙️  Configuring sensor...");
+    
+    // Enable automatic self calibration
+    if (airSensor.setAutoSelfCalibration(true)) {
+        Serial.println("✅ Auto self-calibration: ENABLED");
     } else {
-        Serial.println("Sensor initialization failed. Halting...");
-        while (1);
+        Serial.println("❌ Auto self-calibration: FAILED");
     }
-
-    // Initialize CCS811 Sensor
-    // if (ccs811.begin()) {
-    //     Serial.println("CCS811 Sensor initialized successfully.");
-    // } else {
-    //     Serial.println("CCS811 Sensor initialization failed. Halting...");
-    //     while (1);
-    // }
-
-    // Initialize Display
-    // if (display.begin()) {
-    //     display.showInitializing();
-    // } else {
-    //     Serial.println("Display initialization failed. Halting...");
-    //     while (1);
-    // }
-
-    // Initialize Bluetooth
-    bluetooth.begin();
+    
+    // Set measurement interval
+    if (airSensor.setMeasurementInterval(MEASUREMENT_INTERVAL)) {
+        Serial.printf("✅ Measurement interval: %d seconds\n", MEASUREMENT_INTERVAL);
+    } else {
+        Serial.println("❌ Setting measurement interval: FAILED");
+    }
+    
+    // Set altitude compensation (Lviv is ~296m above sea level)
+    if (airSensor.setAltitudeCompensation(296)) {
+        Serial.println("✅ Altitude compensation: 296m (Lviv)");
+    } else {
+        Serial.println("❌ Altitude compensation: FAILED");
+    }
+    
+    // Get sensor info
+    Serial.println("\n📋 Sensor Information:");
+    // Serial.printf("   Firmware version: v%d.%d\n", 
+    //               airSensor.getFirmwareVersion() >> 8, 
+    //               airSensor.getFirmwareVersion() & 0xFF);
+    
+    Serial.println("\n🚀 CoToMeter ready to measure!");
+    Serial.println("📊 Starting measurements...\n");
+    
+    sensorInitialized = true;
+    lastMeasurement = millis();
 }
 
 void loop() {
-    // Check if new data is available from SensorCO2
-    uint16_t co2 = 0;
-    float temperature = 0.0;
-    float humidity = 0.0;
-
-    if (sensor.readData(co2, temperature, humidity)) {
-        // Log data to Serial Monitor
-        Serial.print("SensorCO2 - CO2: ");
-        Serial.print(co2);
-        Serial.print(" ppm, Temperature: ");
-        Serial.print(temperature);
-        Serial.print(" °C, Humidity: ");
-        Serial.print(humidity);
-        Serial.println(" %RH");
-
-        // Send data via Bluetooth
-        String message = "SensorCO2 - CO2: " + String(co2) + " ppm, Temp: " + String(temperature) + " C, Humidity: " + String(humidity) + " %RH";
-
-        // Read data from CCS811
-        uint16_t eCO2 = 0;
-        float TVOC = 0.0;
-        // if (ccs811.readData(eCO2, TVOC)) {
-        //     Serial.print("CCS811 - eCO2: ");
-        //     Serial.print(eCO2);
-        //     Serial.print(" ppm, TVOC: ");
-        //     Serial.print(TVOC);
-        //     Serial.println(" ppb");
-
-        //     // Append CCS811 data to the Bluetooth message
-        //     message += "\nCCS811 - eCO2: " + String(eCO2) + " ppm, TVOC: " + String(TVOC) + " ppb";
-        // } else {
-        //     Serial.println("CCS811 - No data available or read failed.");
-        //     message += "\nCCS811 - No data available.";
-        // }
-
-        bluetooth.sendMessage(message);
-
-        // Optional: Blink the LED to indicate successful reading
-        digitalWrite(STATUS_LED, HIGH);
-        delay(100);
-        digitalWrite(STATUS_LED, LOW);
+    if (!sensorInitialized) {
+        delay(1000);
+        return;
     }
-
-    // Handle Bluetooth received messages
-    String receivedMessage;
-    if (bluetooth.receiveMessage(receivedMessage)) {
-        // Process the received message
-        receivedMessage.trim(); // Remove any trailing newline or spaces
-        Serial.println("Processing received Bluetooth message: " + receivedMessage);
-
-        if (receivedMessage.equalsIgnoreCase("LED ON")) {
-            digitalWrite(STATUS_LED, HIGH);
-            bluetooth.sendMessage("LED turned ON");
+    
+    // Check if new data is available
+    if (airSensor.dataAvailable()) {
+        // Read all sensor values
+        float co2 = airSensor.getCO2();
+        float temperature = airSensor.getTemperature();
+        float humidity = airSensor.getHumidity();
+        
+        // Get current time
+        unsigned long currentTime = millis();
+        unsigned long uptime = currentTime / 1000;  // Convert to seconds
+        
+        // Print header with timestamp
+        Serial.println("🐱===========================🐱");
+        Serial.printf("⏰ Uptime: %02d:%02d:%02d\n", 
+                     (int)(uptime/3600), 
+                     (int)((uptime%3600)/60), 
+                     (int)(uptime%60));
+        Serial.println("📊 CoToMeter Readings:");
+        
+        // CO2 reading with status
+        Serial.printf("🌬️  CO2: %.0f ppm", co2);
+        if (co2 < 400) {
+            Serial.println(" ⚠️ (Too low - check sensor)");
+        } else if (co2 <= 600) {
+            Serial.println(" 😸 (Excellent)");
+        } else if (co2 <= 1000) {
+            Serial.println(" 😺 (Good)");
+        } else if (co2 <= 1500) {
+            Serial.println(" 😿 (Poor - ventilate!)");
+        } else if (co2 <= 2000) {
+            Serial.println(" 🙀 (Bad - open windows!)");
+        } else {
+            Serial.println(" 💀 (Dangerous - immediate action!)");
         }
-        else if (receivedMessage.equalsIgnoreCase("LED OFF")) {
-            digitalWrite(STATUS_LED, LOW);
-            bluetooth.sendMessage("LED turned OFF");
+        
+        // Temperature reading
+        Serial.printf("🌡️  Temperature: %.1f°C", temperature);
+        if (temperature >= 20 && temperature <= 24) {
+            Serial.println(" 😸 (Comfortable)");
+        } else if (temperature < 18) {
+            Serial.println(" 🥶 (Too cold)");
+        } else if (temperature > 26) {
+            Serial.println(" 🥵 (Too hot)");
+        } else {
+            Serial.println(" 😐 (Acceptable)");
         }
-        else {
-            bluetooth.sendMessage("Unknown Command");
+        
+        // Humidity reading
+        Serial.printf("💧 Humidity: %.1f%%", humidity);
+        if (humidity >= 40 && humidity <= 60) {
+            Serial.println(" 😸 (Optimal)");
+        } else if (humidity < 30) {
+            Serial.println(" 🏜️ (Too dry)");
+        } else if (humidity > 70) {
+            Serial.println(" 🌊 (Too humid)");
+        } else {
+            Serial.println(" 😐 (Acceptable)");
         }
+        
+        // Cat mood based on overall air quality
+        Serial.print("🐱 Cat Mood: ");
+        if (co2 <= 600 && temperature >= 20 && temperature <= 24 && humidity >= 40 && humidity <= 60) {
+            Serial.println("😸 Very Happy!");
+        } else if (co2 <= 1000 && temperature >= 18 && temperature <= 26) {
+            Serial.println("😺 Content");
+        } else if (co2 <= 1500) {
+            Serial.println("😿 Concerned");
+        } else {
+            Serial.println("🙀 Stressed!");
+        }
+        
+        Serial.println("🐱===========================🐱\n");
+        
+        lastMeasurement = currentTime;
     }
+    
+    // Check if sensor is not responding
+    if (millis() - lastMeasurement > 30000) {  // 30 seconds timeout
+        Serial.println("⚠️ No data from sensor for 30 seconds...");
+        Serial.println("🔄 Checking sensor status...");
+        
+        if (!airSensor.begin()) {
+            Serial.println("❌ Sensor connection lost!");
+            sensorInitialized = false;
+        }
+        
+        lastMeasurement = millis();
+    }
+    
+    // Small delay to prevent overwhelming the serial output
+    delay(1000);
+}
 
-    // Small delay to prevent overwhelming the loop
-    delay(100);
+// Helper function to format uptime
+String formatUptime(unsigned long seconds) {
+    unsigned long hours = seconds / 3600;
+    unsigned long minutes = (seconds % 3600) / 60;
+    unsigned long secs = seconds % 60;
+    
+    char buffer[20];
+    sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes, secs);
+    return String(buffer);
 }
