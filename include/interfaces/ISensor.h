@@ -8,7 +8,7 @@ public:
     // Essential operations only
     virtual bool initialize() = 0;
     virtual bool readData() = 0;
-    virtual SensorData getCurrentData() = 0;
+    virtual SensorDataBase* getCurrentData() = 0;  
     virtual bool isReady() = 0;
     virtual String getLastError() = 0;
 };

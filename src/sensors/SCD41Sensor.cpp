@@ -9,8 +9,10 @@
 // Create sensor instance
 SensirionI2cScd4x scd4x;
 
-SCD41Sensor::SCD41Sensor() : initialized(false) {
-    currentData = SensorData();
+SCD41Sensor::SCD41Sensor() 
+    : initialized(false)
+    , currentData("SCD41")  // Initialize CO2SensorData with sensor ID
+{
     lastError = "";
 }
 
@@ -85,7 +87,6 @@ bool SCD41Sensor::initialize() {
     
     initialized = true;
     Serial.println("✅ SCD41 sensor initialized successfully");
-    Serial.println("🔄 Waiting for first measurement (5 seconds)...");
     
     return true;
 }
@@ -133,19 +134,19 @@ bool SCD41Sensor::readData() {
     currentData.temperature = temperature;
     currentData.humidity = humidity;
     currentData.updateTimestamp();
-    currentData.valid = true;
+    currentData.setValid(true);
     
     lastError = "";
-    
-    // Debug output
-    // Serial.printf("📊 SCD41 Reading - CO2: %d ppm, Temp: %.1f°C, Humidity: %.1f%%\n", 
-    //               co2, temperature, humidity);
     
     return true;
 }
 
-SensorData SCD41Sensor::getCurrentData() {
-    return currentData;
+SensorDataBase* SCD41Sensor::getCurrentData() {
+    return &currentData;  // Return pointer to base class
+}
+
+CO2SensorData SCD41Sensor::getCO2Data() {
+    return currentData;  // Return actual CO2 data
 }
 
 bool SCD41Sensor::isReady() {

@@ -12,7 +12,7 @@ public:
     ~ConsoleDisplay() = default;
     
     bool initialize() override;
-    void showSensorData(const SensorData& data) override;
+    void showSensorData(const SensorDataBase& data) override;
     void showMessage(const String& message) override;
     void showError(const String& error) override;
 };

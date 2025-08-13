@@ -3,20 +3,24 @@
 #include "interfaces/IDisplay.h"
 #include "types/SensorData.h"
 #include <memory>
+#include <vector>
 
 class CoToMeterController {
 private:
-    std::unique_ptr<ISensor> sensor;
+    std::vector<std::unique_ptr<ISensor>> sensors;
     std::unique_ptr<IDisplay> display;
     
     uint32_t lastMeasurement;
     uint32_t measurementInterval;
     
-    // Button handling
-    // const gpio_num_t BUTTON_PIN = GPIO_NUM_0;
-    // volatile bool buttonPressed;
-    // static void IRAM_ATTR buttonISR();
-    static CoToMeterController* instance; // For ISR callback
+    // Sensor data storage
+    CO2SensorData* co2Data;
+    VOCSensorData* vocData;
+    
+    // Helper methods
+    void printCombinedData();
+    void checkAlerts();
+    String getCombinedCatMood();
     
 public:
     CoToMeterController();
@@ -24,7 +28,10 @@ public:
     
     bool initialize();
     void loop();
-    void handleButtonPress();
+    
+    // Data access
+    CO2SensorData* getCO2Data() { return co2Data; }
+    VOCSensorData* getVOCData() { return vocData; }
     
     // Delete copy constructor and assignment
     CoToMeterController(const CoToMeterController&) = delete;

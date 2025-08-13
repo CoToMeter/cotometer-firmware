@@ -7,11 +7,7 @@ bool ConsoleDisplay::initialize() {
     return true;
 }
 
-void ConsoleDisplay::showSensorData(const SensorData& data) {
-    // printSeparator();
-    // Serial.println("     🐱 COTOMETER READINGS 🐱     ");
-    // printSeparator();
-    
+void ConsoleDisplay::showSensorData(const SensorDataBase& data) {
     // Show uptime
     uint32_t uptime = millis() / 1000;
     Serial.printf("⏰ Uptime: %02d:%02d:%02d\n", 
@@ -19,42 +15,13 @@ void ConsoleDisplay::showSensorData(const SensorData& data) {
                  (int)((uptime%3600)/60), 
                  (int)(uptime%60));
     
-    // Serial.println();
+    // Use the sensor's toString method
+    Serial.println("📊 " + data.toString());
     
-    // CO2 with status
-    Serial.printf("🌬️  CO2:         %4.0f ppm ", data.co2);
+    // Show alert level and cat mood
     AlertLevel level = data.getAlertLevel();
-    Serial.print(getCatMood(level));
+    Serial.println("🐱 Cat Mood: " + getCatMood(level));
     
-    // Temperature
-    Serial.printf("🌡️  Temperature: %4.1f°C", data.temperature);
-    if (data.temperature >= 20 && data.temperature <= 24) {
-        Serial.printf(" 😸 (Comfortable)");
-    } else if (data.temperature < 18) {
-        Serial.printf(" 🥶 (Too cold)");
-    } else if (data.temperature > 26) {
-        Serial.printf(" 🥵 (Too hot)");
-    } else {
-        Serial.printf(" 😐 (OK)");
-    }
-    
-    // Humidity
-    Serial.printf(" 💧  Humidity:    %4.1f%% ", data.humidity);
-    if (data.humidity >= 40 && data.humidity <= 60) {
-        Serial.printf("😸 (Optimal)");
-    } else if (data.humidity < 30) {
-        Serial.printf("🏜️ (Too dry)");
-    } else if (data.humidity > 70) {
-        Serial.printf("🌊 (Too humid)");
-    } else {
-        Serial.printf("😐 (OK)");
-    }
-    
-    // Serial.println();
-    Serial.print("🏠 Air Quality: " + data.getAirQualityText());
-    Serial.print("🐱 Cat Mood: " + getCatMood(level));
-    
-    // printSeparator();
     Serial.println();
 }
 
@@ -79,10 +46,10 @@ void ConsoleDisplay::printSeparator() {
 
 String ConsoleDisplay::getCatMood(AlertLevel level) {
     switch (level) {
-        case AlertLevel::GOOD: return "😸 Very Happy!";
-        case AlertLevel::FAIR: return "😺 Content";
-        case AlertLevel::POOR: return "😿 Concerned";
-        case AlertLevel::BAD: return "🙀 Stressed!";
+        case AlertLevel::NONE: return "😸 Very Happy!";
+        case AlertLevel::INFO: return "😺 Content";
+        case AlertLevel::WARNING: return "😿 Concerned";
+        case AlertLevel::CRITICAL: return "🙀 Stressed!";
         default: return "😐 Neutral";
     }
 }

@@ -124,7 +124,7 @@ enum class CommunicationType {
     NONE = 0,
     BLE = 1,
     WIFI = 2,
-    SERIAL = 3
+    SERIAL_ = 3
 };
 
 // ================================
