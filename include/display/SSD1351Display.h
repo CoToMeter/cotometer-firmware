@@ -30,7 +30,9 @@ private:
     
     // Helper methods
     uint16_t getAlertColor(AlertLevel level);
-    void drawCatFace(AlertLevel level);
+    uint16_t getCO2Color(float co2);
+    uint16_t getVOCColor(float voc);
+    void drawCatFace(AlertLevel level, int centerX = 64, int centerY = 35);
     
 public:
     SSD1351Display();
@@ -41,4 +43,7 @@ public:
     void showSensorData(const SensorDataBase& data) override;
     void showMessage(const String& message) override;
     void showError(const String& error) override;
+    
+    // New method for combined sensor display
+    void showCombinedSensorData(const CO2SensorData* co2Data, const VOCSensorData* vocData);
 };

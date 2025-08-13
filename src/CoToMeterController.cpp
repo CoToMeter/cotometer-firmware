@@ -38,7 +38,7 @@ bool CoToMeterController::initialize() {
     }
     
     // Show startup message on OLED
-    display->showMessage("🐱 CoToMeter v2.0\n\nInitializing\nsensors...");
+    display->showMessage("🐱 CoToMeter\n\nInitializing\nsensors...");
     
     // Create and initialize SCD41 sensor (I2C)
     Serial.println("\n🌬️ Initializing SCD41 CO2 sensor via I2C...");
@@ -95,9 +95,6 @@ void CoToMeterController::loop() {
                 if (data->getType() == SensorType::CO2_TEMP_HUMIDITY) {
                     co2Data = static_cast<CO2SensorData*>(data);
                     Serial.println("✅ SCD41 data updated");
-                    
-                    // Show CO2 data on OLED immediately
-                    display->showSensorData(*co2Data);
                     hasNewData = true;
                 }
                 else if (data->getType() == SensorType::VOC_GAS) {
@@ -115,11 +112,13 @@ void CoToMeterController::loop() {
             printCombinedData();
             checkAlerts();
             
-            // Prioritize CO2 display, but show VOC if no CO2
-            if (co2Data && co2Data->isValid()) {
-                display->showSensorData(*co2Data);
-            } else if (vocData && vocData->isValid()) {
-                display->showSensorData(*vocData);
+            // Show combined data on OLED using the new method
+            SSD1351Display* oledDisplay = static_cast<SSD1351Display*>(display.get());
+            if (oledDisplay) {
+                oledDisplay->showCombinedSensorData(
+                    (co2Data && co2Data->isValid()) ? co2Data : nullptr,
+                    (vocData && vocData->isValid()) ? vocData : nullptr
+                );
             }
         } else {
             display->showError("No sensor data\navailable");
@@ -163,6 +162,22 @@ void CoToMeterController::printCombinedData() {
         Serial.println("╠═══════════════════════════════════════════════════════╣");
     }
     
+    // Temperature comparison
+    if (co2Data && co2Data->isValid() && vocData && vocData->isValid()) {
+        float tempDiff = abs(co2Data->temperature - vocData->temperature);
+        Serial.printf("║ 📊  Temp Diff:   %5.1f°C between sensors         ║\n", tempDiff);
+        if (tempDiff > 2.0) {
+            Serial.println("║ ⚠️   Warning: Large temperature difference!        ║");
+        }
+        
+        float humDiff = abs(co2Data->humidity - vocData->humidity);
+        Serial.printf("║ 📊  Humidity Diff: %5.1f%% between sensors        ║\n", humDiff);
+        if (humDiff > 5.0) {
+            Serial.println("║ ⚠️   Warning: Large humidity difference!           ║");
+        }
+        Serial.println("╠═══════════════════════════════════════════════════════╣");
+    }
+    
     // Combined assessment
     String catMood = getCombinedCatMood();
     Serial.printf("║ 🐱  Cat Mood:    %-28s  ║\n", catMood.c_str());
@@ -177,6 +192,9 @@ void CoToMeterController::printCombinedData() {
         } else if (co2Data->co2 < 600) {
             recommendation = "Excellent air quality!";
         }
+    }
+    if (vocData && vocData->isValid() && vocData->vocEstimate > 200) {
+        recommendation = "Check for VOC sources!";
     }
     Serial.printf("║ 💡  Advice:      %-28s  ║\n", recommendation.c_str());
     
@@ -210,13 +228,31 @@ void CoToMeterController::checkAlerts() {
         }
     }
     
-    // Check temperature comfort (using SCD41 as primary)
+    // Check temperature comfort (using both sensors)
     if (co2Data && co2Data->isValid()) {
         if (co2Data->temperature < 18) {
-            alerts.push_back("🥶 INFO: Temperature too cold (" + String(co2Data->temperature, 1) + "°C)");
+            alerts.push_back("🥶 INFO: Temperature too cold (SCD41: " + String(co2Data->temperature, 1) + "°C)");
         } else if (co2Data->temperature > 26) {
-            alerts.push_back("🥵 INFO: Temperature too hot (" + String(co2Data->temperature, 1) + "°C)");
+            alerts.push_back("🥵 INFO: Temperature too hot (SCD41: " + String(co2Data->temperature, 1) + "°C)");
         }
+    }
+    
+    // Check sensor agreement
+    if (co2Data && co2Data->isValid() && vocData && vocData->isValid()) {
+        float tempDiff = abs(co2Data->temperature - vocData->temperature);
+        float humDiff = abs(co2Data->humidity - vocData->humidity);
+        
+        if (tempDiff > 3.0) {
+            alerts.push_back("⚠️ WARNING: Large temperature difference between sensors (" + String(tempDiff, 1) + "°C)");
+        }
+        if (humDiff > 10.0) {
+            alerts.push_back("⚠️ WARNING: Large humidity difference between sensors (" + String(humDiff, 1) + "%)");
+        }
+    }
+    
+    // Check BME688 heater stability
+    if (vocData && vocData->isValid() && !vocData->heaterStable) {
+        alerts.push_back("ℹ️ INFO: BME688 gas heater warming up - VOC readings may be inaccurate");
     }
     
     // Display alerts on Serial and OLED if critical
