@@ -1,7 +1,7 @@
 #include "CoToMeterController.h"
 #include "sensors/SCD41Sensor.h"
 #include "sensors/BME688Sensor.h"
-#include "display/ConsoleDisplay.h"
+#include "display/SSD1351Display.h" 
 #include <Wire.h>
 #include <SPI.h>
 
@@ -18,48 +18,58 @@ bool CoToMeterController::initialize() {
     delay(1000);
     
     Serial.println("🚀 CoToMeter v2.0 Starting...");
-    Serial.println("🔧 Initializing dual sensor system...");
+    Serial.println("🔧 Initializing dual sensor system with SSD1351 OLED...");
     
     // Initialize I2C for SCD41
     Wire.begin(21, 22); // SDA=21, SCL=22
     Wire.setClock(100000);
     Serial.println("📡 I2C initialized for SCD41 (SDA=21, SCL=22)");
     
-    // Initialize SPI for BME688
-    SPI.begin(18, 19, 23, 4); // SCK=18, MISO=19, MOSI=23, CS=4
-    Serial.println("📡 SPI initialized for BME688 (SCK=18, MISO=19, MOSI=23, CS=4)");
+    // Initialize SPI for BME688 AND SSD1351 Display (shared bus)
+    SPI.begin(18, 19, 23, 4); // SCK=18, MISO=19, MOSI=23, CS=4 for BME688
+    Serial.println("📡 SPI initialized for BME688 + SSD1351 Display");
     
-    // Initialize display
-    display.reset(new ConsoleDisplay());
+    // Initialize SSD1351 OLED display FIRST
+    display.reset(new SSD1351Display());
     if (!display->initialize()) {
-        Serial.println("❌ Display initialization failed");
+        Serial.println("❌ SSD1351 display initialization failed");
+        Serial.println("💡 Check OLED wiring: CS=5, DC=16, RST=17, SCK=18, MOSI=23");
         return false;
     }
+    
+    // Show startup message on OLED
+    display->showMessage("🐱 CoToMeter v2.0\n\nInitializing\nsensors...");
     
     // Create and initialize SCD41 sensor (I2C)
     Serial.println("\n🌬️ Initializing SCD41 CO2 sensor via I2C...");
     auto scd41Sensor = std::unique_ptr<ISensor>(new SCD41Sensor());
     if (!scd41Sensor->initialize()) {
         Serial.println("❌ SCD41 initialization failed: " + scd41Sensor->getLastError());
-        display->showError("SCD41 initialization failed");
+        display->showError("SCD41 Failed\n" + scd41Sensor->getLastError());
         return false;
     }
     sensors.push_back(std::move(scd41Sensor));
     Serial.println("✅ SCD41 sensor initialized successfully");
+    
+    // Update display
+    display->showMessage("SCD41 ✅\n\nInitializing\nBME688...");
+    delay(1000);
     
     // Create and initialize BME688 sensor (SPI)
     Serial.println("\n🌡️ Initializing BME688 VOC sensor via SPI...");
     auto bme688Sensor = std::unique_ptr<ISensor>(new BME688Sensor(0x76, 4)); // CS=4
     if (!bme688Sensor->initialize()) {
         Serial.println("❌ BME688 initialization failed: " + bme688Sensor->getLastError());
-        display->showError("BME688 initialization failed");
+        display->showError("BME688 Failed\n" + bme688Sensor->getLastError());
         return false;
     }
     sensors.push_back(std::move(bme688Sensor));
     Serial.println("✅ BME688 sensor initialized successfully");
     
-    display->showMessage("🐱 CoToMeter dual sensor system ready!");
-    Serial.println("\n✅ CoToMeter initialized with both sensors!");
+    // Show success on OLED
+    display->showMessage("🐱 CoToMeter\n\nSCD41 ✅\nBME688 ✅\n\nStarting...");
+    
+    Serial.println("\n✅ CoToMeter initialized with SSD1351 OLED!");
     Serial.println("📊 Starting measurements in 3 seconds...");
     delay(3000);
     
@@ -85,6 +95,9 @@ void CoToMeterController::loop() {
                 if (data->getType() == SensorType::CO2_TEMP_HUMIDITY) {
                     co2Data = static_cast<CO2SensorData*>(data);
                     Serial.println("✅ SCD41 data updated");
+                    
+                    // Show CO2 data on OLED immediately
+                    display->showSensorData(*co2Data);
                     hasNewData = true;
                 }
                 else if (data->getType() == SensorType::VOC_GAS) {
@@ -97,17 +110,25 @@ void CoToMeterController::loop() {
             }
         }
         
-        // Display combined data if we have any
+        // Display combined data and run analysis
         if (hasNewData) {
             printCombinedData();
             checkAlerts();
+            
+            // Prioritize CO2 display, but show VOC if no CO2
+            if (co2Data && co2Data->isValid()) {
+                display->showSensorData(*co2Data);
+            } else if (vocData && vocData->isValid()) {
+                display->showSensorData(*vocData);
+            }
         } else {
-            display->showError("No sensor data available");
+            display->showError("No sensor data\navailable");
         }
         
         lastMeasurement = currentTime;
     }
     
+    // Quick update cycle for display refresh
     delay(100);
 }
 
@@ -150,7 +171,7 @@ void CoToMeterController::printCombinedData() {
     String recommendation = "Monitor levels";
     if (co2Data && co2Data->isValid()) {
         if (co2Data->co2 > 1500) {
-            recommendation = "URGENT: Ventilate immediately!";
+            recommendation = "URGENT: Ventilate now!";
         } else if (co2Data->co2 > 1000) {
             recommendation = "Open windows for fresh air";
         } else if (co2Data->co2 < 600) {
@@ -166,14 +187,6 @@ void CoToMeterController::printCombinedData() {
     Serial.printf("║ 🧠  Free Memory: %d bytes                        ║\n", ESP.getFreeHeap());
     
     Serial.println("╚═══════════════════════════════════════════════════════╝");
-    
-    // Show individual sensor data via display interface
-    if (co2Data && co2Data->isValid()) {
-        display->showSensorData(*co2Data);
-    }
-    if (vocData && vocData->isValid()) {
-        display->showSensorData(*vocData);
-    }
 }
 
 void CoToMeterController::checkAlerts() {
@@ -206,13 +219,27 @@ void CoToMeterController::checkAlerts() {
         }
     }
     
-    // Display alerts
+    // Display alerts on Serial and OLED if critical
     if (!alerts.empty()) {
         Serial.println("\n🚨 ALERTS:");
         for (const String& alert : alerts) {
             Serial.println("   " + alert);
         }
         Serial.println();
+        
+        // Show critical alerts on OLED
+        bool hasCritical = false;
+        for (const String& alert : alerts) {
+            if (alert.indexOf("CRITICAL") >= 0) {
+                hasCritical = true;
+                break;
+            }
+        }
+        
+        if (hasCritical) {
+            display->showError("CRITICAL ALERT!\nCheck levels");
+            delay(2000); // Show alert for 2 seconds
+        }
     }
 }
 
