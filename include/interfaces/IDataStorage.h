@@ -17,8 +17,8 @@ public:
     virtual bool hasConfig() = 0;
     
     // Data storage (must implement) 
-    virtual bool saveData(const SensorData& data) = 0;
-    virtual bool loadData(SensorData& data, uint32_t index = 0) = 0;
+    virtual bool saveData(const SensorDataBase& data) = 0;
+    virtual bool loadData(SensorDataBase& data, uint32_t index = 0) = 0;
     virtual uint32_t getDataCount() = 0;
     
     // ================================

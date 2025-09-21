@@ -92,6 +92,17 @@ bool CoToMeterController::initialize() {
         communication.reset();  // Continue without communication
     } else {
         Serial.println("✅ Communication ready");
+        // ✅ ENABLE HISTORICAL DATA IMMEDIATELY (before time sync)
+        BluetoothComm* btComm = static_cast<BluetoothComm*>(communication.get());
+        if (btComm) {
+            Serial.println("📊 Enabling RAM-only historical data storage...");
+            if (btComm->enableHistoricalData(600)) {  // 600 records (~1.7 hours)
+                Serial.println("✅ RAM-only historical data enabled - fast operation");
+                Serial.println("⚠️  Data will be lost on power cycle/reboot");
+            } else {
+                Serial.println("⚠️  Historical data storage failed to initialize");
+            }
+        }
     }
 
 
@@ -145,12 +156,22 @@ void CoToMeterController::loop() {
                     (vocData && vocData->isValid()) ? vocData : nullptr
                 );
             }
+            // Send data via communication and store historical data
             if (communication && communication->isConnected()) {
                 if (co2Data && co2Data->isValid()) {
                     communication->sendSensorData(*(SensorDataBase*)(co2Data));
                 }
                 if (vocData && vocData->isValid()) {
                     communication->sendSensorData(*(SensorDataBase*)(vocData));
+                }
+                
+                // Store current reading for historical data
+                BluetoothComm* btComm = static_cast<BluetoothComm*>(communication.get());
+                if (btComm) {
+                    btComm->storeCurrentReading(
+                        (co2Data && co2Data->isValid()) ? co2Data : nullptr,
+                        (vocData && vocData->isValid()) ? vocData : nullptr
+                    );
                 }
             }
 
@@ -163,9 +184,7 @@ void CoToMeterController::loop() {
     }
 
     if (communication) {
-        communication->receiveData(); // Process incoming data
-        
-        // ✅ FIX: Call update method without dynamic_cast
+        // ✅ FIX: Call update method which handles both receiving and processing
         BluetoothComm* btComm = static_cast<BluetoothComm*>(communication.get());
         if (btComm) {
             btComm->update();

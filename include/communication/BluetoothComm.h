@@ -1,10 +1,13 @@
 #pragma once
 #include "../interfaces/ICommunication.h"
 #include "../types/SensorData.h"
+#include "../types/TimeSync.h"
+#include "../storage/HistoricalDataStorage.h"
 #include <BluetoothSerial.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <vector>
+#include <memory>
 
 class BluetoothComm : public ICommunication {
 private:
@@ -27,6 +30,8 @@ private:
     String deviceType;
     std::vector<String> availableSensors;
     int samplingRate;
+    bool batteryPowered;
+    float storageCapacityMB;
     
     // Statistics
     uint32_t bytesTransmitted;
@@ -36,6 +41,11 @@ private:
     
     // Timing
     uint32_t statusUpdateInterval;
+    
+    // Time synchronization and historical data
+    TimeSync timeSync;
+    std::unique_ptr<HistoricalDataStorage> historicalStorage;
+    bool historicalDataEnabled;
     
 public:
     BluetoothComm();
@@ -89,6 +99,31 @@ public:
     bool sendErrorMessage(const String& errorCode, const String& message, 
                          const String& severity = "error", const String& sensor = "");
     
+    // Overload with request_id and optional details
+    bool sendErrorMessage(const String& errorCode, const String& message, 
+                         const String& severity, const String& sensor,
+                         const String& request_id, JsonDocument* details = nullptr);
+    
+    // ================================
+    // TIME SYNCHRONIZATION & HISTORICAL DATA
+    // ================================
+    
+    // Time synchronization
+    bool sendTimeSyncStatus(const String& request_id = "");
+    bool sendTimeSyncAck(const String& request_id, bool success, const String& message = "");
+    bool synchronizeTime(uint64_t current_timestamp, const String& timezone_offset = "+0000");
+    
+    // Historical data management
+    bool enableHistoricalData(size_t max_records = 58000);
+    bool disableHistoricalData();
+    bool storeCurrentReading(const CO2SensorData* co2_data = nullptr,
+                           const VOCSensorData* voc_data = nullptr);
+    
+    // Historical data queries
+    bool sendHistoricalData(const String& request_id, const TimeRange& range, 
+                           size_t chunk_size = 50);
+    bool sendStorageInfo(const String& request_id = "");
+    
     // Command handling (call from main loop)
     void handleIncomingCommands();
     void update(); // Handle periodic status updates
@@ -113,4 +148,18 @@ private:
     void handleStartStreaming(JsonDocument& cmd);
     void handleStopStreaming(JsonDocument& cmd);
     void handleRestartDevice(JsonDocument& cmd);
+    
+    // New command handlers for time sync and historical data
+    void handleTimeSyncRequest(JsonDocument& cmd);
+    void handleTimeSyncSet(JsonDocument& cmd);
+    void handleHistoryRequest(JsonDocument& cmd);
+    void handleRealtimeControl(JsonDocument& cmd);
+    void handleStorageInfoRequest(JsonDocument& cmd);
+    
+    // Helper functions for historical data
+    bool sendHistoricalDataChunk(const String& request_id, 
+                                const std::vector<SensorRecord>& records,
+                                size_t chunk_index, size_t total_chunks,
+                                size_t total_points);
+    bool validateTimeRange(const TimeRange& range, String& error_message);
 };

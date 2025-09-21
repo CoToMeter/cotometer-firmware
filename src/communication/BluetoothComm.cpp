@@ -13,6 +13,9 @@ BluetoothComm::BluetoothComm()
     , lastStatusSent(0)
     , statusUpdateInterval(30000) // 30 seconds
     , samplingRate(5)
+    , batteryPowered(true)
+    , storageCapacityMB(3.5)
+    , historicalDataEnabled(false)
 {
     // Set defaults
     firmwareVersion = "2.0.0";
@@ -305,6 +308,7 @@ void BluetoothComm::handleIncomingCommands() {
     while (hasDataAvailable()) {
         String command = receiveData();
         if (command.length() > 0) {
+            Serial.printf("🔍 Processing command: %s\n", command.c_str());
             parseAndHandleCommand(command);
         }
     }
@@ -324,8 +328,11 @@ bool BluetoothComm::sendDeviceInfo() {
     doc["firmware_version"] = firmwareVersion;
     doc["hardware_version"] = hardwareVersion;
     doc["sampling_rate"] = samplingRate;
-    doc["battery_powered"] = true;
+    doc["battery_powered"] = batteryPowered;
     doc["mac_address"] = WiFi.macAddress();
+    doc["storage_type"] = historicalDataEnabled ? 
+                         (historicalStorage ? historicalStorage->getStorageType() : "flash") : "none";
+    doc["storage_capacity_mb"] = storageCapacityMB;
     
     JsonArray sensorsArray = doc["available_sensors"].to<JsonArray>();
     for (size_t i = 0; i < availableSensors.size(); i++) {
@@ -340,6 +347,7 @@ bool BluetoothComm::sendDeviceStatus() {
     if (!isConnected()) return false;
     
     JsonDocument doc;  // ✅ FIX: Use JsonDocument
+    doc["type"] = "device_status";  // ✅ ADD: Missing type field
     doc["timestamp"] = millis();
     doc["device_id"] = deviceId;
     doc["battery_level"] = 85;
@@ -411,6 +419,218 @@ bool BluetoothComm::sendJsonMessage(const String& type, JsonDocument& doc) {
     return sendData(jsonString);
 }
 
+// ================================
+// TIME SYNCHRONIZATION FUNCTIONS
+// ================================
+
+bool BluetoothComm::sendTimeSyncStatus(const String& request_id) {
+    if (!isConnected()) return false;
+    
+    JsonDocument doc;
+    doc["type"] = "time_sync_status";
+    if (request_id.length() > 0) {
+        doc["request_id"] = request_id;
+    }
+    doc["has_time"] = timeSync.has_time;
+    doc["current_uptime"] = millis();
+    
+    if (timeSync.has_time) {
+        doc["current_timestamp"] = timeSync.getCurrentTimestamp();
+        doc["sync_age_minutes"] = timeSync.getSyncAgeMinutes();
+    }
+    
+    Serial.printf("⏰ Sending time sync status: has_time=%s, uptime=%lu\n", 
+                 timeSync.has_time ? "true" : "false", millis());
+    return sendJsonMessage("time_sync_status", doc);
+}
+
+bool BluetoothComm::sendTimeSyncAck(const String& request_id, bool success, const String& message) {
+    if (!isConnected()) return false;
+    
+    JsonDocument doc;
+    doc["type"] = "time_sync_ack";
+    doc["request_id"] = request_id;
+    doc["success"] = success;
+    doc["current_uptime"] = millis();
+    
+    if (message.length() > 0) {
+        doc["message"] = message;
+    }
+    
+    if (success && timeSync.has_time) {
+        doc["current_timestamp"] = timeSync.getCurrentTimestamp();
+    }
+    
+    Serial.printf("⏰ Sending time sync ack: success=%s\n", success ? "true" : "false");
+    return sendJsonMessage("time_sync_ack", doc);
+}
+
+bool BluetoothComm::synchronizeTime(uint64_t current_timestamp, const String& timezone_offset) {
+    bool success = timeSync.synchronizeTime(current_timestamp, timezone_offset);
+    
+    if (success) {
+        Serial.printf("⏰ Time synchronized! Current time: %llu\n", timeSync.getCurrentTimestamp());
+        
+        // Enable historical data storage now that we have time sync
+        if (!historicalDataEnabled && historicalStorage) {
+            Serial.println("📊 Enabling historical data storage after time sync...");
+            historicalDataEnabled = true;
+        }
+    } else {
+        Serial.println("⚠️ Time synchronization failed");
+    }
+    
+    return success;
+}
+
+// ================================
+// HISTORICAL DATA FUNCTIONS
+// ================================
+
+bool BluetoothComm::sendHistoricalData(const String& request_id, const TimeRange& range, 
+                                     size_t chunk_size) {
+    if (!isConnected()) return false;
+    
+    if (!historicalStorage) {
+        return sendErrorMessage("STORAGE_ERROR", "Historical data not enabled", "error", "", request_id);
+    }
+    
+    // Create TimeRange struct for query
+    TimeRange query_range;
+    query_range.start_time = range.start_time;
+    query_range.end_time = range.end_time;
+    query_range.max_points = range.max_points;
+    
+    // Query historical data
+    std::vector<SensorRecord> records = historicalStorage->queryByTimeRange(query_range, timeSync);
+    
+    JsonDocument doc;
+    doc["t"] = "historical_data";  // t = type
+    doc["r"] = request_id;         // r = request_id  
+    doc["n"] = records.size();     // n = total_records
+    doc["s"] = timeSync.has_time;  // s = time_synced
+    
+    // 🚀 ULTRA COMPACT FORMAT: Single letter field names + 2 decimal precision
+    // Each record: {t: timestamp, c: co2, T: temp, h: humidity, p: pressure, v: voc}
+    JsonArray dataArray = doc["d"].to<JsonArray>();  // d = data
+    
+    for (const SensorRecord& record : records) {
+        JsonObject dataPoint = dataArray.add<JsonObject>();
+        
+        // t = timestamp
+        if (timeSync.has_time) {
+            dataPoint["t"] = timeSync.uptimeToTimestamp(record.uptime);
+        } else {
+            dataPoint["t"] = record.uptime;
+        }
+        
+        // c = CO2 (integer is fine)
+        if (record.validity_flags & SensorRecord::FLAG_CO2_VALID) {
+            dataPoint["c"] = (int)round(record.co2);
+        }
+        
+        // T = Temperature (2 decimal places)
+        if (record.validity_flags & SensorRecord::FLAG_TEMP_VALID) {
+            dataPoint["T"] = round(record.temperature * 100) / 100.0;
+        }
+        
+        // h = Humidity (2 decimal places)
+        if (record.validity_flags & SensorRecord::FLAG_HUMIDITY_VALID) {
+            dataPoint["h"] = round(record.humidity * 100) / 100.0;
+        }
+        
+        // p = Pressure (2 decimal places)
+        if (record.validity_flags & SensorRecord::FLAG_PRESSURE_VALID) {
+            dataPoint["p"] = round(record.pressure * 100) / 100.0;
+        }
+        
+        // v = VOC (2 decimal places)
+        if (record.validity_flags & SensorRecord::FLAG_VOC_VALID) {
+            dataPoint["v"] = round(record.voc * 100) / 100.0;
+        }
+    }
+    
+    Serial.printf("🚀 Sending %zu historical records in ULTRA COMPACT format\n", records.size());
+    Serial.println("📝 Format: {t:type, r:request_id, n:count, s:time_synced, d:[{t:timestamp, c:co2, T:temp, h:humidity, p:pressure, v:voc}]}");
+    return sendJsonMessage("historical_data", doc);
+}
+
+bool BluetoothComm::sendStorageInfo(const String& request_id) {
+    if (!isConnected()) return false;
+    
+    JsonDocument doc;
+    doc["t"] = "storage_info";  // t = type
+    if (request_id.length() > 0) {
+        doc["r"] = request_id;  // r = request_id
+    }
+    
+    if (historicalStorage) {
+        doc["e"] = true;  // e = enabled
+        doc["c"] = historicalStorage->getRecordCount();  // c = record_count
+        doc["m"] = historicalStorage->getMaxRecords();   // m = max_records
+        doc["f"] = historicalStorage->isFull();          // f = is_full
+        doc["z"] = historicalStorage->isEmpty();         // z = is_empty (using z to avoid conflict)
+        doc["y"] = historicalStorage->getStorageType();  // y = storage_type
+        doc["s"] = timeSync.has_time;                    // s = time_synced
+        
+        // Get time range if data exists
+        unsigned long oldest_uptime, newest_uptime;
+        if (historicalStorage->getDataTimeRange(oldest_uptime, newest_uptime)) {
+            if (timeSync.has_time) {
+                doc["o"] = timeSync.uptimeToTimestamp(oldest_uptime);  // o = earliest_timestamp
+                doc["l"] = timeSync.uptimeToTimestamp(newest_uptime);  // l = latest_timestamp
+            } else {
+                doc["o"] = oldest_uptime;   // o = earliest_uptime
+                doc["l"] = newest_uptime;   // l = latest_uptime
+                doc["g"] = "Time not synced";  // g = message
+            }
+        }
+    } else {
+        doc["e"] = false;  // e = enabled
+        doc["g"] = "Storage not initialized";  // g = message
+    }
+    
+    Serial.println("💾 Sending storage info in compact format");
+    return sendJsonMessage("storage_info", doc);
+}
+
+// ================================
+// HISTORICAL DATA MANAGEMENT
+// ================================
+
+bool BluetoothComm::enableHistoricalData(size_t max_records) {
+    if (!historicalStorage) {
+        historicalStorage = std::unique_ptr<HistoricalDataStorage>(new HistoricalDataStorage("ram_only", max_records));
+        if (!historicalStorage->initialize()) {
+            Serial.println("❌ Failed to initialize historical data storage");
+            historicalStorage.reset();
+            return false;
+        }
+    }
+    
+    historicalDataEnabled = true;
+    Serial.printf("✅ Historical data enabled with %zu max records\n", max_records);
+    return true;
+}
+
+bool BluetoothComm::disableHistoricalData() {
+    if (historicalStorage) {
+        historicalStorage.reset();
+    }
+    historicalDataEnabled = false;
+    Serial.println("📊 Historical data disabled");
+    return true;
+}
+
+bool BluetoothComm::storeCurrentReading(const CO2SensorData* co2_data,
+                                       const VOCSensorData* voc_data) {
+    if (!historicalDataEnabled || !historicalStorage) {
+        return false;
+    }
+    
+    return historicalStorage->storeReading(millis(), co2_data, voc_data);
+}
+
 void BluetoothComm::parseAndHandleCommand(const String& command) {
     JsonDocument doc;  // ✅ FIX: Use JsonDocument
     DeserializationError error = deserializeJson(doc, command);
@@ -421,6 +641,7 @@ void BluetoothComm::parseAndHandleCommand(const String& command) {
     }
     
     String type = doc["type"].as<String>();
+    Serial.printf("🔍 Parsing command type: '%s'\n", type.c_str());
     
     if (type == "connection_ack") {
         Serial.println("✅ Connection acknowledged");
@@ -436,6 +657,16 @@ void BluetoothComm::parseAndHandleCommand(const String& command) {
         handleStopStreaming(doc);
     } else if (type == "restart_device") {
         handleRestartDevice(doc);
+    } else if (type == "time_sync_request") {
+        handleTimeSyncRequest(doc);
+    } else if (type == "time_sync_set") {
+        handleTimeSyncSet(doc);
+    } else if (type == "history_request") {
+        handleHistoryRequest(doc);
+    } else if (type == "realtime_control") {
+        handleRealtimeControl(doc);
+    } else if (type == "storage_info_request") {
+        handleStorageInfoRequest(doc);
     } else {
         sendErrorMessage("UNKNOWN_COMMAND", "Command not recognized: " + type, "warning");
     }
@@ -482,5 +713,107 @@ String BluetoothComm::getConnectionStats() {
     stats += connected ? "Connected" : "Disconnected";
     stats += ", Streaming: " + String(streaming ? "Yes" : "No");
     stats += ", Sent: " + String(bytesTransmitted) + "B";
+    stats += ", Time: " + timeSync.getStatusString();
+    if (historicalDataEnabled && historicalStorage) {
+        stats += ", Records: " + String(historicalStorage->getRecordCount());
+    }
     return stats;
+}
+
+// ================================
+// NEW COMMAND HANDLERS IMPLEMENTATION
+// ================================
+
+void BluetoothComm::handleTimeSyncRequest(JsonDocument& cmd) {
+    String request_id = cmd["request_id"].as<String>();
+    
+    Serial.println("⏰ Time sync requested");
+    Serial.printf("🔍 Request ID: '%s'\n", request_id.c_str());
+    sendTimeSyncStatus(request_id);
+}
+
+void BluetoothComm::handleTimeSyncSet(JsonDocument& cmd) {
+    String request_id = cmd["request_id"].as<String>();
+    uint64_t current_time = cmd["current_time"].as<uint64_t>();
+    String timezone_offset = cmd["timezone_offset"].as<String>();
+    
+    if (timezone_offset.length() == 0) {
+        timezone_offset = "+0000";
+    }
+    
+    Serial.printf("⏰ Setting time: %llu, timezone: %s\n", current_time, timezone_offset.c_str());
+    
+    bool success = synchronizeTime(current_time, timezone_offset);
+    sendTimeSyncAck(request_id, success);
+}
+
+void BluetoothComm::handleHistoryRequest(JsonDocument& cmd) {
+    String request_id = cmd["request_id"].as<String>();
+    
+    TimeRange range;
+    range.start_time = cmd["start_time"].as<uint64_t>();
+    range.end_time = cmd["end_time"].as<uint64_t>();
+    range.max_points = cmd["max_points"].as<int>();
+    
+    if (range.max_points == 0) {
+        range.max_points = 1000; // Default
+    }
+    
+    Serial.printf("📊 History request: %llu-%llu, max_points=%u\n", 
+                 range.start_time, range.end_time, range.max_points);
+    
+    sendHistoricalData(request_id, range);
+}
+
+void BluetoothComm::handleRealtimeControl(JsonDocument& cmd) {
+    String action = cmd["action"].as<String>();
+    int interval_ms = cmd["interval_ms"].as<int>();
+    
+    if (action == "start") {
+        streaming = true;
+        if (interval_ms > 0) {
+            // TODO: Set sampling interval
+        }
+        Serial.println("📊 Real-time streaming started");
+    } else if (action == "stop") {
+        streaming = false;
+        Serial.println("📊 Real-time streaming stopped");
+    } else if (action == "pause") {
+        streaming = false;
+        Serial.println("📊 Real-time streaming paused");
+    }
+}
+
+void BluetoothComm::handleStorageInfoRequest(JsonDocument& cmd) {
+    String request_id = cmd["request_id"].as<String>();
+    
+    Serial.println("💾 Storage info requested");
+    sendStorageInfo(request_id);
+}
+
+bool BluetoothComm::sendErrorMessage(const String& errorCode, const String& message, 
+                                    const String& severity, const String& sensor,
+                                    const String& request_id, JsonDocument* details) {
+    if (!isConnected()) return false;
+    
+    JsonDocument doc;
+    doc["type"] = "error";
+    if (request_id.length() > 0) {
+        doc["request_id"] = request_id;
+    }
+    doc["timestamp"] = millis();
+    doc["device_id"] = deviceId;
+    doc["error_code"] = errorCode;
+    doc["error_message"] = message;
+    doc["severity"] = severity;
+    if (sensor.length() > 0) {
+        doc["sensor"] = sensor;
+    }
+    
+    if (details) {
+        doc["details"] = *details;
+    }
+    
+    Serial.printf("🚨 Bluetooth error: %s - %s\n", errorCode.c_str(), message.c_str());
+    return sendJsonMessage("error", doc);
 }
