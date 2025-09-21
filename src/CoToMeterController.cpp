@@ -69,7 +69,32 @@ bool CoToMeterController::initialize() {
     // Show success on OLED
     display->showMessage("🐱 CoToMeter\n\nSCD41 ✅\nBME688 ✅\n\nStarting...");
     
-    Serial.println("\n✅ CoToMeter initialized with SSD1351 OLED!");
+        Serial.println("\n📡 Initializing communication...");
+    
+    communication.reset(new BluetoothComm());
+    
+    // Configure device info (if it's BluetoothComm)
+    BluetoothComm* btComm = static_cast<BluetoothComm*>(communication.get());
+    if (btComm) {
+        std::vector<String> sensors;
+        sensors.push_back("CO2");
+        sensors.push_back("TEMPERATURE");
+        sensors.push_back("HUMIDITY");
+        sensors.push_back("VOC");
+        sensors.push_back("PRESSURE");
+        
+        btComm->setDeviceInfo("2.0.0", "2.1", "ESP32_HOME", sensors);
+        btComm->setSamplingRate(measurementInterval / 1000);
+    }
+    
+    if (!communication->initialize()) {
+        Serial.println("❌ Communication initialization failed");
+        communication.reset();  // Continue without communication
+    } else {
+        Serial.println("✅ Communication ready");
+    }
+
+
     Serial.println("📊 Starting measurements in 3 seconds...");
     delay(3000);
     
@@ -120,11 +145,31 @@ void CoToMeterController::loop() {
                     (vocData && vocData->isValid()) ? vocData : nullptr
                 );
             }
+            if (communication && communication->isConnected()) {
+                if (co2Data && co2Data->isValid()) {
+                    communication->sendSensorData(*(SensorDataBase*)(co2Data));
+                }
+                if (vocData && vocData->isValid()) {
+                    communication->sendSensorData(*(SensorDataBase*)(vocData));
+                }
+            }
+
+
         } else {
             display->showError("No sensor data\navailable");
         }
         
         lastMeasurement = currentTime;
+    }
+
+    if (communication) {
+        communication->receiveData(); // Process incoming data
+        
+        // ✅ FIX: Call update method without dynamic_cast
+        BluetoothComm* btComm = static_cast<BluetoothComm*>(communication.get());
+        if (btComm) {
+            btComm->update();
+        }
     }
     
     // Quick update cycle for display refresh

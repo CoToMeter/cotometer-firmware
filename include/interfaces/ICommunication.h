@@ -22,7 +22,7 @@ public:
     
     // Data transmission (must implement)
     virtual bool sendData(const String& data) = 0;
-    virtual bool sendSensorData(const SensorData& data) = 0;
+    virtual bool sendSensorData(const SensorDataBase& data) = 0;
     virtual String receiveData() = 0;
     virtual bool hasDataAvailable() = 0;
     
