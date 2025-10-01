@@ -1,0 +1,4835 @@
+================================================================================
+COTOMETER PROJECT - CONCATENATED FILES
+================================================================================
+Generated: 2025-09-19 13:42:27
+Project Root: /Users/yurayavorskyi/Projects/CoToMeter/cotometer-firmware
+Total Files: 54
+================================================================================
+
+📋 PROJECT STRUCTURE
+----------------------------------------
+📁 /
+├── platformio.ini
+├── 📁 include/
+│   ├── Bluetooth.h
+│   ├── CCS811Sensor.h
+│   ├── CoToMeterController.h
+│   ├── Constants.h
+│   ├── Display.h
+│   └── SensorCO2.h
+├── 📁 include/analytics/
+│   ├── AQICalculator.h
+│   └── AirQualityAnalytics.h
+├── 📁 include/communication/
+│   ├── BLEComm.h
+│   ├── BLECommunication.h
+│   ├── CommunicationFactory.h
+│   └── WiFiCommunication.h
+├── 📁 include/config/
+│   └── ConfigurationTemplates.h
+├── 📁 include/display/
+│   ├── ConsoleDisplay.h
+│   ├── DisplayFactory.h
+│   ├── EInkDisplay.h
+│   └── SSD1351Display.h
+├── 📁 include/events/
+│   └── EventDispatcher.h
+├── 📁 include/filters/
+│   ├── ExponentialFilter.h
+│   ├── KalmanFilter.h
+│   └── MovingAverageFilter.h
+├── 📁 include/interfaces/
+│   ├── IAnalytics.h
+│   ├── ICommunication.h
+│   ├── IDataStorage.h
+│   ├── IDisplay.h
+│   ├── IEventHandler.h
+│   ├── IFilter.h
+│   ├── IPowerManager.h
+│   └── ISensor.h
+├── 📁 include/managers/
+│   ├── CalibrationManager.h
+│   ├── DiagnosticsManager.h
+│   ├── OTAManager.h
+│   └── ScreenManager.h
+├── 📁 include/power/
+│   └── PowerManager.h
+├── 📁 include/sensors/
+│   ├── BME688Sensor.h
+│   ├── PMS7003Sensor.h
+│   ├── SCD41Sensor.h
+│   └── SensorFactory.h
+├── 📁 include/types/
+│   ├── DeviceConfig.h
+│   ├── Event.h
+│   ├── SensorData.h
+│   └── SystemEnums.h
+├── 📁 include/utils/
+│   ├── Logger.h
+│   ├── SystemUtils.h
+│   └── ValidationUtils.h
+├── 📁 src/
+│   ├── Bluetooth.cpp
+│   ├── CCS811Sensor.cpp
+│   ├── CoToMeterController.cpp
+│   └── main.cpp
+├── 📁 src/display/
+│   ├── ConsoleDisplay.cpp
+│   └── SSD1351Display.cpp
+├── 📁 src/sensors/
+│   ├── BME688Sensor.cpp
+│   └── SCD41Sensor.cpp
+
+================================================================================
+📂 CONFIGURATION FILES
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   1/54: platformio.ini                                                    │
+│ 📁 Path: .                                                                  │
+│ 📊 Size: 681 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+; PlatformIO Project Configuration File
+;
+;   Build options: build flags, source filter
+;   Upload options: custom upload port, speed and extra flags
+;   Library options: dependencies, extra library storages
+;   Advanced options: extra scripting
+;
+; Please visit documentation for the other options and examples
+; https://docs.platformio.org/page/projectconf.html
+
+[env:upesy_wroom]
+platform = espressif32
+board = upesy_wroom
+framework = arduino
+upload_speed = 115200
+monitor_speed = 115200
+lib_deps = 
+	sparkfun/SparkFun CCS811 Arduino Library@^2.0.3
+	sensirion/Sensirion I2C SCD4x@^1.1.0
+	boschsensortec/BME68x Sensor library@^1.3.40408
+	adafruit/Adafruit SSD1351 library@^1.3.3
+
+────────────────────────────────────────────────────────────────────────────────
+
+================================================================================
+📂 HEADERS FILES
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   2/54: include/Bluetooth.h                                               │
+│ 📁 Path: include                                                            │
+│ 📊 Size: 642 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#ifndef BLUETOOTH_H
+#define BLUETOOTH_H
+
+#include <BluetoothSerial.h>
+#include <Arduino.h>
+
+class Bluetooth {
+public:
+    // Constructor accepting the device name
+    Bluetooth(const char* deviceName);
+    
+    // Initialize Bluetooth
+    void begin();
+    
+    // Send a message via Bluetooth
+    void sendMessage(const String& message);
+    
+    // Receive a message via Bluetooth
+    bool receiveMessage(String& message);
+    
+    // Check if a Bluetooth client is connected
+    bool isConnected();
+
+private:
+    BluetoothSerial SerialBT;   // BluetoothSerial object
+    const char* _deviceName;    // Device name
+};
+
+#endif // BLUETOOTH_H
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   3/54: include/CCS811Sensor.h                                            │
+│ 📁 Path: include                                                            │
+│ 📊 Size: 668 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#ifndef CCS811SENSOR_H
+#define CCS811SENSOR_H
+
+#include <SparkFunCCS811.h>
+#include <Wire.h>
+
+class CCS811Sensor {
+public:
+    // Constructor with optional I2C address (default is 0x5B)
+    CCS811Sensor(uint8_t i2cAddress = 0x5B);
+
+    // Initialize the sensor
+    bool begin(TwoWire &wirePort = Wire);
+
+    // Read eCO2 and TVOC data
+    bool readData(uint16_t &eCO2, float &TVOC);
+
+    // Set environmental data for improved accuracy
+    void setEnvironmentalData(float temperature, float humidity);
+
+    // Get human-readable status string
+    const char* getStatusString();
+
+private:
+    CCS811 ccs811; // Instance of the CCS811 sensor
+};
+
+#endif // CCS811SENSOR_H
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   4/54: include/CoToMeterController.h                                     │
+│ 📁 Path: include                                                            │
+│ 📊 Size: 983 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include "interfaces/ISensor.h"
+#include "interfaces/IDisplay.h"
+#include "types/SensorData.h"
+#include <memory>
+#include <vector>
+
+class CoToMeterController {
+private:
+    std::vector<std::unique_ptr<ISensor>> sensors;
+    std::unique_ptr<IDisplay> display;
+    
+    uint32_t lastMeasurement;
+    uint32_t measurementInterval;
+    
+    // Sensor data storage
+    CO2SensorData* co2Data;
+    VOCSensorData* vocData;
+    
+    // Helper methods
+    void printCombinedData();
+    void checkAlerts();
+    String getCombinedCatMood();
+    
+public:
+    CoToMeterController();
+    ~CoToMeterController() = default;
+    
+    bool initialize();
+    void loop();
+    
+    // Data access
+    CO2SensorData* getCO2Data() { return co2Data; }
+    VOCSensorData* getVOCData() { return vocData; }
+    
+    // Delete copy constructor and assignment
+    CoToMeterController(const CoToMeterController&) = delete;
+    CoToMeterController& operator=(const CoToMeterController&) = delete;
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   5/54: include/Constants.h                                               │
+│ 📁 Path: include                                                            │
+│ 📊 Size: 2,566 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+// File: include/Constants.h
+#pragma once
+#include <Arduino.h>
+
+namespace Constants {
+    // Event system constants
+    const size_t MAX_EVENT_QUEUE_SIZE = 50;
+    
+    // Sensor constants
+    const uint32_t SENSOR_READ_TIMEOUT_MS = 5000;
+    const uint32_t SENSOR_WARMUP_TIME_MS = 3000;
+    
+    // Communication constants
+    const uint32_t BLE_CONNECTION_TIMEOUT_MS = 30000;
+    const uint32_t DATA_TRANSMISSION_INTERVAL_MS = 5000;
+    
+    // Power management
+    const uint8_t BATTERY_LOW_THRESHOLD = 20;      // %
+    const uint8_t BATTERY_CRITICAL_THRESHOLD = 10; // %
+    
+    // Display constants
+    const uint32_t DISPLAY_TIMEOUT_MS = 30000;     // 30 seconds
+    const uint8_t DISPLAY_BRIGHTNESS_DEFAULT = 128; // 0-255
+    
+    // Measurement intervals
+    const uint32_t MEASUREMENT_INTERVAL_FAST_MS = 5000;    // 5 seconds
+    const uint32_t MEASUREMENT_INTERVAL_NORMAL_MS = 10000; // 10 seconds
+    const uint32_t MEASUREMENT_INTERVAL_SLOW_MS = 30000;   // 30 seconds
+    
+    // Calibration
+    const uint32_t AUTO_CALIBRATION_INTERVAL_HOURS = 24;
+    const uint16_t CO2_CALIBRATION_TARGET_PPM = 400;
+    
+    // GPIO pins (ESP32-S3)
+    namespace GPIO {
+        const int SDA_PIN = 21;
+        const int SCL_PIN = 22;
+        const int SPI_SCK_PIN = 18;
+        const int SPI_MISO_PIN = 19;
+        const int SPI_MOSI_PIN = 23;
+        const int BME688_CS_PIN = 4;
+        const int BUTTON_PIN = 0;
+        const int BATTERY_ADC_PIN = 36;
+        const int SENSOR_POWER_PIN = 2;
+    }
+    
+    // I2C addresses
+    namespace I2C {
+        const uint8_t SCD41_ADDRESS = 0x62;
+        const uint8_t BME688_ADDRESS_1 = 0x76;
+        const uint8_t BME688_ADDRESS_2 = 0x77;
+    }
+    
+    // Thresholds
+    namespace Thresholds {
+        const uint16_t CO2_GOOD_MAX = 600;        // ppm
+        const uint16_t CO2_FAIR_MAX = 800;        // ppm
+        const uint16_t CO2_POOR_MAX = 1200;       // ppm
+        const uint16_t CO2_BAD_MAX = 2000;        // ppm
+        
+        const float VOC_GOOD_MAX = 50.0;          // ppb
+        const float VOC_FAIR_MAX = 100.0;         // ppb
+        const float VOC_POOR_MAX = 200.0;         // ppb
+        
+        const float TEMP_COMFORT_MIN = 20.0;      // °C
+        const float TEMP_COMFORT_MAX = 24.0;      // °C
+        
+        const float HUMIDITY_COMFORT_MIN = 40.0;  // %
+        const float HUMIDITY_COMFORT_MAX = 60.0;  // %
+    }
+    
+    // Firmware info
+    const String FIRMWARE_VERSION = "2.0.0";
+    const String DEVICE_NAME = "CoToMeter";
+    const String MANUFACTURER = "CoTo Industries";
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   6/54: include/Display.h                                                 │
+│ 📁 Path: include                                                            │
+│ 📊 Size: 456 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+// #ifndef DISPLAY_H
+// #define DISPLAY_H
+
+// #include <GxEPD2_BW.h>
+// #include <Fonts/FreeMonoBold9pt7b.h>
+
+// class Display {
+// public:
+//     Display(uint8_t cs, uint8_t dc, uint8_t rst, uint8_t busy);
+//     bool begin();
+//     void showInitializing();
+//     void showReadings(uint16_t co2, float temperature, float humidity);
+//     void clear();
+
+// private:
+//     GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
+// };
+
+// #endif // DISPLAY_H
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   7/54: include/SensorCO2.h                                               │
+│ 📁 Path: include                                                            │
+│ 📊 Size: 362 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#ifndef SENSOR_H
+#define SENSOR_H
+
+#include <SparkFun_SCD30_Arduino_Library.h>
+
+class SensorCO2 {
+public:
+    SensorCO2();
+    bool begin();
+    bool readData(uint16_t& co2, float& temperature, float& humidity);
+    void setMeasurementInterval(uint16_t interval);
+    void enableAutoSelfCalibration(bool enable);
+
+private:
+    SCD30 scd30;
+};
+
+#endif // SENSOR_H
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   8/54: include/analytics/AQICalculator.h                                 │
+│ 📁 Path: include/analytics                                                  │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE   9/54: include/analytics/AirQualityAnalytics.h                           │
+│ 📁 Path: include/analytics                                                  │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  10/54: include/communication/BLEComm.h                                   │
+│ 📁 Path: include/communication                                              │
+│ 📊 Size: 4,816 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include "../interfaces/ICommunication.h"
+#include <BluetoothSerial.h>
+
+class BLEComm : public ICommunication {
+private:
+    BluetoothSerial SerialBT;
+    String deviceName;
+    String lastError;
+    bool initialized;
+    bool advertising;
+    
+    DataCallback dataCallback;
+    StatusCallback statusCallback;
+    
+    uint32_t bytesTransmitted;
+    uint32_t bytesReceived;
+    
+public:
+    BLEComm();
+    virtual ~BLEComm() = default;
+    
+    // Essential operations (ICommunication)
+    bool initialize() override;
+    bool isConnected() override;
+    void disconnect() override;
+    bool isReady() override;
+    
+    bool sendData(const String& data) override;
+    bool sendSensorData(const SensorData& data) override;
+    String receiveData() override;
+    bool hasDataAvailable() override;
+    
+    // Optional features (ICommunication)
+    bool startAdvertising() override;
+    bool stopAdvertising() override;
+    bool isAdvertising() override;
+    
+    void setDataCallback(DataCallback callback) override;
+    void setStatusCallback(StatusCallback callback) override;
+    
+    void setDeviceName(const String& name) override;
+    String getDeviceName() override;
+    
+    int getSignalStrength() override;
+    String getLastError() override;
+    
+    void sleep() override;
+    void wakeup() override;
+};
+
+/*
+ * communication/BLEComm.cpp
+ * Implementation
+ */
+
+BLEComm::BLEComm() 
+    : deviceName("CoToMeter")
+    , lastError("")
+    , initialized(false)
+    , advertising(false)
+    , bytesTransmitted(0)
+    , bytesReceived(0)
+{
+}
+
+bool BLEComm::initialize() {
+    Serial.println("📡 Initializing Bluetooth...");
+    
+    if (!SerialBT.begin(deviceName)) {
+        lastError = "Bluetooth initialization failed";
+        Serial.println("❌ " + lastError);
+        return false;
+    }
+    
+    initialized = true;
+    advertising = true;
+    
+    Serial.println("✅ Bluetooth initialized as: " + deviceName);
+    Serial.println("📱 Ready to pair with mobile app");
+    
+    return true;
+}
+
+bool BLEComm::isConnected() {
+    return initialized && SerialBT.hasClient();
+}
+
+void BLEComm::disconnect() {
+    if (isConnected()) {
+        SerialBT.disconnect();
+        Serial.println("📡 Bluetooth disconnected");
+        
+        if (statusCallback) {
+            statusCallback(false);
+        }
+    }
+}
+
+bool BLEComm::isReady() {
+    return initialized;
+}
+
+bool BLEComm::sendData(const String& data) {
+    if (!isConnected()) {
+        lastError = "Not connected";
+        return false;
+    }
+    
+    SerialBT.println(data);
+    bytesTransmitted += data.length();
+    
+    Serial.println("📤 Sent: " + data);
+    return true;
+}
+
+bool BLEComm::sendSensorData(const SensorData& data) {
+    return sendData(data.toJson());
+}
+
+String BLEComm::receiveData() {
+    if (!SerialBT.available()) {
+        return "";
+    }
+    
+    String receivedData = SerialBT.readStringUntil('\n');
+    receivedData.trim();
+    
+    if (receivedData.length() > 0) {
+        bytesReceived += receivedData.length();
+        Serial.println("📥 Received: " + receivedData);
+        
+        if (dataCallback) {
+            dataCallback(receivedData);
+        }
+    }
+    
+    return receivedData;
+}
+
+bool BLEComm::hasDataAvailable() {
+    return SerialBT.available() > 0;
+}
+
+bool BLEComm::startAdvertising() {
+    if (!initialized) {
+        return initialize();
+    }
+    
+    advertising = true;
+    Serial.println("📡 Bluetooth advertising started");
+    return true;
+}
+
+bool BLEComm::stopAdvertising() {
+    advertising = false;
+    SerialBT.end();
+    initialized = false;
+    Serial.println("📡 Bluetooth advertising stopped");
+    return true;
+}
+
+bool BLEComm::isAdvertising() {
+    return advertising && initialized;
+}
+
+void BLEComm::setDataCallback(DataCallback callback) {
+    dataCallback = callback;
+}
+
+void BLEComm::setStatusCallback(StatusCallback callback) {
+    statusCallback = callback;
+}
+
+void BLEComm::setDeviceName(const String& name) {
+    deviceName = name;
+    
+    // If already initialized, restart with new name
+    if (initialized) {
+        SerialBT.end();
+        delay(100);
+        SerialBT.begin(deviceName);
+        Serial.println("📡 Bluetooth device name changed to: " + deviceName);
+    }
+}
+
+String BLEComm::getDeviceName() {
+    return deviceName;
+}
+
+int BLEComm::getSignalStrength() {
+    // BluetoothSerial doesn't provide RSSI directly
+    // Return a mock value or implement if needed
+    return isConnected() ? -45 : -100; // dBm
+}
+
+String BLEComm::getLastError() {
+    return lastError;
+}
+
+void BLEComm::sleep() {
+    if (initialized) {
+        SerialBT.end();
+        initialized = false;
+        advertising = false;
+        Serial.println("📡 Bluetooth sleeping");
+    }
+}
+
+void BLEComm::wakeup() {
+    if (!initialized) {
+        initialize();
+    }
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  11/54: include/communication/BLECommunication.h                          │
+│ 📁 Path: include/communication                                              │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  12/54: include/communication/CommunicationFactory.h                      │
+│ 📁 Path: include/communication                                              │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  13/54: include/communication/WiFiCommunication.h                         │
+│ 📁 Path: include/communication                                              │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  14/54: include/config/ConfigurationTemplates.h                           │
+│ 📁 Path: include/config                                                     │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  15/54: include/display/ConsoleDisplay.h                                  │
+│ 📁 Path: include/display                                                    │
+│ 📊 Size: 479 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include "../interfaces/IDisplay.h"
+
+class ConsoleDisplay : public IDisplay {
+private:
+    void printCatHeader();
+    void printSeparator();
+    String getCatMood(AlertLevel level);
+    
+public:
+    ConsoleDisplay() = default;
+    ~ConsoleDisplay() = default;
+    
+    bool initialize() override;
+    void showSensorData(const SensorDataBase& data) override;
+    void showMessage(const String& message) override;
+    void showError(const String& error) override;
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  16/54: include/display/DisplayFactory.h                                  │
+│ 📁 Path: include/display                                                    │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  17/54: include/display/EInkDisplay.h                                     │
+│ 📁 Path: include/display                                                    │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  18/54: include/display/SSD1351Display.h                                  │
+│ 📁 Path: include/display                                                    │
+│ 📊 Size: 1,521 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include "../interfaces/IDisplay.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1351.h>
+#include <SPI.h>
+
+class SSD1351Display : public IDisplay {
+private:
+    static const int SCREEN_WIDTH = 128;
+    static const int SCREEN_HEIGHT = 128;
+    
+    // Pin definitions
+    static const int CS_PIN = 5;
+    static const int DC_PIN = 16;
+    static const int RST_PIN = 17;
+    static const int SCLK_PIN = 18;
+    static const int MOSI_PIN = 23;
+    
+    // Colors (RGB565)
+    static const uint16_t BLACK = 0x0000;
+    static const uint16_t WHITE = 0xFFFF;
+    static const uint16_t RED = 0xF800;
+    static const uint16_t GREEN = 0x07E0;
+    static const uint16_t BLUE = 0x001F;
+    static const uint16_t YELLOW = 0xFFE0;
+    static const uint16_t CYAN = 0x07FF;
+    static const uint16_t ORANGE = 0xFD20;
+    
+    Adafruit_SSD1351 display;
+    
+    // Helper methods
+    uint16_t getAlertColor(AlertLevel level);
+    uint16_t getCO2Color(float co2);
+    uint16_t getVOCColor(float voc);
+    void drawCatFace(AlertLevel level, int centerX = 64, int centerY = 35);
+    
+public:
+    SSD1351Display();
+    ~SSD1351Display() = default;
+    
+    // IDisplay interface
+    bool initialize() override;
+    void showSensorData(const SensorDataBase& data) override;
+    void showMessage(const String& message) override;
+    void showError(const String& error) override;
+    
+    // New method for combined sensor display
+    void showCombinedSensorData(const CO2SensorData* co2Data, const VOCSensorData* vocData);
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  19/54: include/events/EventDispatcher.h                                  │
+│ 📁 Path: include/events                                                     │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  20/54: include/filters/ExponentialFilter.h                               │
+│ 📁 Path: include/filters                                                    │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  21/54: include/filters/KalmanFilter.h                                    │
+│ 📁 Path: include/filters                                                    │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  22/54: include/filters/MovingAverageFilter.h                             │
+│ 📁 Path: include/filters                                                    │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  23/54: include/interfaces/IAnalytics.h                                   │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 1,199 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include <Arduino.h>
+#include "../types/SensorData.h"
+
+class IAnalytics {
+public:
+    virtual ~IAnalytics() = default;
+    
+    // ================================
+    // ESSENTIAL OPERATIONS
+    // ================================
+    
+    // Air Quality Index (must implement)
+    virtual int calculateAQI(const SensorData& data) = 0;
+    virtual String getAQIDescription(int aqi) = 0;
+    virtual AlertLevel getAlertLevel(const SensorData& data) = 0;
+    
+    // ================================
+    // OPTIONAL FEATURES
+    // ================================
+    
+    // Data analysis
+    virtual bool isDataValid(const SensorData& data) { return data.valid; }
+    virtual float getDataTrend(const String& parameter) { return 0.0; } // +/- trend
+    virtual String getRecommendations(const SensorData& data) { return ""; }
+    
+    // Statistics
+    virtual float getAverage(const String& parameter) { return 0.0; }
+    virtual float getMin(const String& parameter) { return 0.0; }
+    virtual float getMax(const String& parameter) { return 0.0; }
+    
+    // Analytics info
+    virtual String getAnalyticsVersion() { return "1.0"; }
+    virtual bool isReady() { return true; }
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  24/54: include/interfaces/ICommunication.h                               │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 1,698 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include <Arduino.h>
+#include <functional>
+#include "../types/SensorData.h"
+
+class ICommunication {
+public:
+    using DataCallback = std::function<void(const String&)>;
+    using StatusCallback = std::function<void(bool)>;
+    
+    virtual ~ICommunication() = default;
+    
+    // ================================
+    // ESSENTIAL OPERATIONS
+    // ================================
+    
+    // Core operations (must implement)
+    virtual bool initialize() = 0;
+    virtual bool isConnected() = 0;
+    virtual void disconnect() = 0;
+    virtual bool isReady() = 0;
+    
+    // Data transmission (must implement)
+    virtual bool sendData(const String& data) = 0;
+    virtual bool sendSensorData(const SensorData& data) = 0;
+    virtual String receiveData() = 0;
+    virtual bool hasDataAvailable() = 0;
+    
+    // ================================
+    // OPTIONAL FEATURES
+    // ================================
+    
+    // Connection management
+    virtual bool startAdvertising() { return false; }
+    virtual bool stopAdvertising() { return false; }
+    virtual bool isAdvertising() { return false; }
+    
+    // Callbacks
+    virtual void setDataCallback(DataCallback callback) { /* optional */ }
+    virtual void setStatusCallback(StatusCallback callback) { /* optional */ }
+    
+    // Configuration
+    virtual void setDeviceName(const String& name) { /* optional */ }
+    virtual String getDeviceName() { return "CoToMeter"; }
+    
+    // Status
+    virtual int getSignalStrength() { return -50; } // dBm
+    virtual String getLastError() { return ""; }
+    
+    // Power management
+    virtual void sleep() { /* optional */ }
+    virtual void wakeup() { /* optional */ }
+};
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  25/54: include/interfaces/IDataStorage.h                                 │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 1,339 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include <Arduino.h>
+#include "../types/SensorData.h"
+#include "../types/DeviceConfig.h"
+
+class IDataStorage {
+public:
+    virtual ~IDataStorage() = default;
+    
+    // ================================
+    // ESSENTIAL OPERATIONS
+    // ================================
+    
+    // Configuration storage (must implement)
+    virtual bool saveConfig(const DeviceConfig& config) = 0;
+    virtual bool loadConfig(DeviceConfig& config) = 0;
+    virtual bool hasConfig() = 0;
+    
+    // Data storage (must implement) 
+    virtual bool saveData(const SensorData& data) = 0;
+    virtual bool loadData(SensorData& data, uint32_t index = 0) = 0;
+    virtual uint32_t getDataCount() = 0;
+    
+    // ================================
+    // OPTIONAL FEATURES
+    // ================================
+    
+    // Storage management
+    virtual bool clear() { return false; }
+    virtual bool format() { return false; }
+    virtual uint32_t getUsedSpace() { return 0; }
+    virtual uint32_t getFreeSpace() { return 1000000; } // 1MB default
+    
+    // Data export
+    virtual String exportData(uint32_t count = 10) { return "{}"; }
+    virtual bool importData(const String& jsonData) { return false; }
+    
+    // Storage info
+    virtual String getStorageType() { return "preferences"; }
+    virtual bool isReady() { return true; }
+};
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  26/54: include/interfaces/IDisplay.h                                     │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 358 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include "../types/SensorData.h"
+
+class IDisplay {
+public:
+    virtual ~IDisplay() = default;
+    
+    // Essential operations only
+    virtual bool initialize() = 0;
+    virtual void showSensorData(const SensorDataBase& data) = 0;
+    virtual void showMessage(const String& message) = 0;
+    virtual void showError(const String& error) = 0;
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  27/54: include/interfaces/IEventHandler.h                                │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 1,150 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include <Arduino.h>
+#include <vector>
+#include "../types/Event.h"
+#include "../types/SystemEnums.h"
+
+class IEventHandler {
+public:
+    virtual ~IEventHandler() = default;
+    
+    // ================================
+    // ESSENTIAL OPERATIONS
+    // ================================
+    
+    // Core event handling (must implement)
+    virtual void handleEvent(const Event& event) = 0;
+    virtual bool canHandle(EventType type) = 0;
+    virtual String getHandlerName() = 0;
+    virtual int getPriority() = 0; // Higher = more important
+    
+    // ================================
+    // OPTIONAL FEATURES
+    // ================================
+    
+    // Event filtering
+    virtual bool shouldHandle(const Event& event) { return canHandle(event.type); }
+    virtual std::vector<EventType> getSupportedEvents() { return {}; }
+    
+    // Handler lifecycle
+    virtual bool initialize() { return true; }
+    virtual void shutdown() { /* optional */ }
+    virtual bool isReady() { return true; }
+    
+    // Handler state
+    virtual bool isEnabled() { return true; }
+    virtual void setEnabled(bool enabled) { /* optional */ }
+};
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  28/54: include/interfaces/IFilter.h                                      │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 793 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include <Arduino.h>
+
+class IFilter {
+public:
+    virtual ~IFilter() = default;
+    
+    // ================================
+    // ESSENTIAL OPERATIONS
+    // ================================
+    
+    // Data filtering (must implement)
+    virtual float filter(float newValue) = 0;
+    virtual void reset() = 0;
+    
+    // ================================
+    // OPTIONAL FEATURES
+    // ================================
+    
+    // Filter state
+    virtual bool isReady() { return true; }
+    virtual float getCurrentValue() { return 0.0; }
+    virtual String getFilterType() { return "unknown"; }
+    
+    // Configuration
+    virtual void setParameter(const String& param, float value) { /* optional */ }
+    virtual float getParameter(const String& param) { return 0.0; }
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  29/54: include/interfaces/IPowerManager.h                                │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 2,192 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include <Arduino.h>
+#include <functional>
+
+class IPowerManager {
+public:
+    enum class PowerMode {
+        NORMAL = 0,
+        ECO = 1,
+        DEEP_SLEEP = 2
+    };
+    
+    struct BatteryInfo {
+        float voltage;              // Battery voltage (V)
+        uint8_t percentage;         // Battery percentage (0-100)
+        bool isCharging;           // Is battery charging
+        bool isLowBattery;         // Is battery below threshold
+    };
+    
+    virtual ~IPowerManager() = default;
+    
+    // ================================
+    // ESSENTIAL OPERATIONS
+    // ================================
+    
+    // Sleep modes (must implement)
+    virtual void enterDeepSleep(uint64_t sleepTimeUs) = 0;
+    virtual void wakeup() = 0;
+    virtual bool isSleeping() = 0;
+    
+    // Battery monitoring (must implement)
+    virtual float getBatteryVoltage() = 0;
+    virtual uint8_t getBatteryPercentage() = 0;
+    virtual bool isLowBattery() = 0;
+    virtual bool isCharging() = 0;
+    
+    // ================================
+    // OPTIONAL FEATURES
+    // ================================
+    
+    // Power control
+    virtual void enableSensorPower() { /* optional */ }
+    virtual void disableSensorPower() { /* optional */ }
+    virtual void enableDisplayPower() { /* optional */ }
+    virtual void disableDisplayPower() { /* optional */ }
+    
+    // Power modes
+    virtual void setPowerMode(PowerMode mode) { /* optional */ }
+    virtual PowerMode getPowerMode() { return PowerMode::NORMAL; }
+    
+    // Battery info
+    virtual BatteryInfo getBatteryInfo() {
+        BatteryInfo info;
+        info.voltage = getBatteryVoltage();
+        info.percentage = getBatteryPercentage();
+        info.isCharging = isCharging();
+        info.isLowBattery = isLowBattery();
+        return info;
+    }
+    
+    // Callbacks
+    virtual void setLowBatteryCallback(std::function<void()> callback) { /* optional */ }
+    virtual void setChargingCallback(std::function<void(bool)> callback) { /* optional */ }
+    
+    // Configuration
+    virtual void setLowBatteryThreshold(uint8_t percentage) { /* optional */ }
+    virtual uint8_t getLowBatteryThreshold() { return 20; }
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  30/54: include/interfaces/ISensor.h                                      │
+│ 📁 Path: include/interfaces                                                 │
+│ 📊 Size: 338 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#pragma once
+#include "../types/SensorData.h"
+
+class ISensor {
+public:
+    virtual ~ISensor() = default;
+    
+    // Essential operations only
+    virtual bool initialize() = 0;
+    virtual bool readData() = 0;
+    virtual SensorDataBase* getCurrentData() = 0;  
+    virtual bool isReady() = 0;
+    virtual String getLastError() = 0;
+};
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  31/54: include/managers/CalibrationManager.h                             │
+│ 📁 Path: include/managers                                                   │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  32/54: include/managers/DiagnosticsManager.h                             │
+│ 📁 Path: include/managers                                                   │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  33/54: include/managers/OTAManager.h                                     │
+│ 📁 Path: include/managers                                                   │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  34/54: include/managers/ScreenManager.h                                  │
+│ 📁 Path: include/managers                                                   │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  35/54: include/power/PowerManager.h                                      │
+│ 📁 Path: include/power                                                      │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  36/54: include/sensors/BME688Sensor.h                                    │
+│ 📁 Path: include/sensors                                                    │
+│ 📊 Size: 3,162 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * sensors/BME688Sensor.h
+ * BME688 VOC/Gas sensor implementation using official Bosch BME68x library
+ */
+
+#pragma once
+#include "../interfaces/ISensor.h"
+#include "../types/SensorData.h"
+#include <Wire.h>
+#include <bme68xLibrary.h>
+
+class BME688Sensor : public ISensor {
+private:
+    Bme68x bme688;
+    VOCSensorData currentData;  // Only VOC data structure
+    String lastError;
+    bool initialized;
+    uint8_t i2cAddress;
+    uint8_t csPin;
+    
+    // BME688-specific data
+    float temperature;
+    float humidity;
+    float pressure;
+    float gasResistance;
+    float vocEstimate;
+    
+    // Sensor configuration
+    bool gasHeaterEnabled;
+    uint16_t heaterTemp;
+    uint16_t heaterDuration;
+    
+    // Helper methods
+    bool configureBasicSettings();
+    bool configureGasHeater();
+    bool validateReadings(const bme68xData& data);
+    float calculateVOCEstimate(float gasResistance, float temperature, float humidity);
+    
+public:
+    BME688Sensor(uint8_t address = 0x76, uint8_t csPin = 4);  // Added CS pin parameter
+    ~BME688Sensor() = default;
+    
+    // ISensor interface implementation
+    bool initialize() override;
+    bool readData() override;
+    SensorDataBase* getCurrentData() override;  // Return VOC data directly
+    bool isReady() override;
+    String getLastError() override;
+    
+    // BME688-specific methods  
+    bool setI2CAddress(uint8_t address);
+    uint8_t getI2CAddress() const;
+    bool setCSPin(uint8_t pin);
+    uint8_t getCSPin() const;
+    
+    // Gas sensor configuration
+    bool enableGasSensor(bool enable = true);
+    bool setHeaterProfile(uint16_t temperature, uint16_t duration);
+    bool setHeaterProfileAdvanced(uint16_t* temperatures, uint16_t* durations, uint8_t profileLength);
+    
+    // Advanced sensor settings
+    bool setOversampling(uint8_t osTemp = BME68X_OS_2X, uint8_t osHum = BME68X_OS_1X, uint8_t osPres = BME68X_OS_16X);
+    bool setFilter(uint8_t filterCoeff = BME68X_FILTER_SIZE_3);
+    bool setOperationMode(uint8_t mode = BME68X_FORCED_MODE);
+    
+    // Individual data getters
+    float getTemperature() const;
+    float getHumidity() const;
+    float getPressure() const;
+    float getGasResistance() const;
+    float getVOCEstimate() const;
+    
+    // Sensor diagnostics
+    bool performSelfTest();
+    uint32_t getUniqueId();
+    String getSensorVariant();
+    bool isGasDataValid() const;
+    bool isHeaterStable() const;
+    
+    // Calibration and configuration
+    bool setAmbientTemperature(int8_t temp);
+    bool softReset();
+    String getConfigurationString() const;
+    
+    // Power management
+    bool enterSleepMode();
+    bool wakeUp();
+    
+    // Data validation helpers
+    bool isTemperatureValid() const;
+    bool isHumidityValid() const;
+    bool isPressureValid() const;
+    bool isGasResistanceValid() const;
+};
+
+// Helper functions for BME688 integration
+// namespace BME688Utils {
+//     String operationModeToString(uint8_t mode);
+//     String oversamplingToString(uint8_t os);
+//     String filterToString(uint8_t filter);
+//     float gasResistanceToAirQuality(float gasResistance);
+//     AlertLevel vocToAlertLevel(float vocEstimate);
+// }
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  37/54: include/sensors/PMS7003Sensor.h                                   │
+│ 📁 Path: include/sensors                                                    │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  38/54: include/sensors/SCD41Sensor.h                                     │
+│ 📁 Path: include/sensors                                                    │
+│ 📊 Size: 1,249 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * sensors/SCD41Sensor.h
+ * Updated to use CO2SensorData structure
+ */
+
+#pragma once
+#include "../interfaces/ISensor.h"
+#include "../types/SensorData.h"
+#include <Wire.h>
+
+class SCD41Sensor : public ISensor {
+private:
+    CO2SensorData currentData;
+    String lastError;
+    bool initialized;
+    
+public:
+    SCD41Sensor();
+    ~SCD41Sensor() = default;
+    
+    // ISensor interface implementation
+    bool initialize() override;
+    bool readData() override;
+    SensorDataBase* getCurrentData() override; 
+    bool isReady() override;
+    String getLastError() override;
+    
+    // SCD41-specific methods
+    CO2SensorData getCO2Data();  
+
+    bool performForcedRecalibration(uint16_t targetCO2 = 400);
+    bool setAutomaticSelfCalibration(bool enabled);
+    bool getAutomaticSelfCalibration();
+    bool setSensorAltitude(uint16_t altitude);
+    bool setTemperatureOffset(float offset);
+    bool setAmbientPressure(uint32_t pressure);
+    bool getSensorSerialNumber(uint64_t& serialNumber);
+    bool performSelfTest();
+    bool getSensorVariant(uint16_t& variant);
+    bool powerDown();
+    bool wakeUp();
+    bool measureSingleShot(uint16_t& co2, float& temp, float& humidity);
+    bool persistSettings();
+    bool performFactoryReset();
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  39/54: include/sensors/SensorFactory.h                                   │
+│ 📁 Path: include/sensors                                                    │
+│ 📊 Size: 12,851 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * sensors/SensorFactory.h
+ * Factory for creating sensor instances
+ */
+
+#pragma once
+
+#include "../interfaces/ISensor.h"
+#include "../types/SystemEnums.h"
+#include <memory>
+#include <vector>
+#include <map>
+
+// ================================
+// SENSOR FACTORY
+// ================================
+
+class SensorFactory {
+public:
+    // Factory method parameters
+    struct SensorParams {
+        // Communication parameters
+        HardwareSerial* serial = nullptr;
+        uint8_t i2cAddress = 0;
+        int sdaPin = -1;
+        int sclPin = -1;
+        uint32_t baudRate = 9600;
+        
+        // Power control
+        int powerPin = -1;
+        bool powerActiveHigh = true;
+        
+        // Timing
+        uint32_t warmupTime = 1000;    // ms
+        uint32_t readInterval = 5000;   // ms
+        
+        // Calibration
+        bool autoCalibration = true;
+        float calibrationOffset = 0.0;
+        float calibrationScale = 1.0;
+        
+        // Custom parameters (JSON string)
+        String customParams;
+        
+        SensorParams() = default;
+    };
+    
+    // Sensor registration entry
+    struct SensorInfo {
+        String name;
+        String description;
+        String manufacturer;
+        String version;
+        std::vector<String> parameters;  // What this sensor measures
+        bool requiresSerial;
+        bool requiresI2C;
+        bool requiresPowerControl;
+        uint32_t defaultI2CAddress;
+        String datasheet;
+        
+        SensorInfo() : requiresSerial(false), requiresI2C(false), 
+                      requiresPowerControl(false), defaultI2CAddress(0) {}
+    };
+
+private:
+    // Registered sensor types
+    static std::map<SensorType, SensorInfo> registeredSensors;
+    static bool initialized;
+    
+public:
+    // ================================
+    // FACTORY METHODS
+    // ================================
+    
+    // Main factory method
+    static std::unique_ptr<ISensor> createSensor(SensorType type, const SensorParams& params = SensorParams());
+    
+    // Convenience methods for specific sensors
+    static std::unique_ptr<ISensor> createSCD41Sensor(int sdaPin = 21, int sclPin = 22);
+    static std::unique_ptr<ISensor> createPMS7003Sensor(HardwareSerial* serial, int powerPin = -1);
+    static std::unique_ptr<ISensor> createBME688Sensor(uint8_t i2cAddress = 0x76);
+    
+    // Auto-detection methods
+    static std::vector<SensorType> detectAvailableSensors();
+    static std::unique_ptr<ISensor> createDetectedSensor(SensorType type);
+    static bool isSensorPresent(SensorType type, const SensorParams& params = SensorParams());
+    
+    // ================================
+    // SENSOR INFORMATION
+    // ================================
+    
+    // Query available sensors
+    static std::vector<SensorType> getAvailableSensorTypes();
+    static std::vector<String> getAvailableSensorNames();
+    static SensorInfo getSensorInfo(SensorType type);
+    static bool isSensorSupported(SensorType type);
+    
+    // Sensor capabilities
+    static std::vector<String> getSensorParameters(SensorType type);
+    static bool canMeasureParameter(SensorType type, const String& parameter);
+    static std::vector<SensorType> getSensorsForParameter(const String& parameter);
+    
+    // ================================
+    // CONFIGURATION VALIDATION
+    // ================================
+    
+    // Parameter validation
+    static bool validateParams(SensorType type, const SensorParams& params);
+    static std::vector<String> getParamValidationErrors(SensorType type, const SensorParams& params);
+    static SensorParams getDefaultParams(SensorType type);
+    static SensorParams sanitizeParams(SensorType type, const SensorParams& params);
+    
+    // Hardware requirements
+    static bool checkHardwareRequirements(SensorType type);
+    static std::vector<String> getHardwareRequirements(SensorType type);
+    static bool isHardwareAvailable(SensorType type);
+    
+    // ================================
+    // SENSOR TESTING & DIAGNOSTICS
+    // ================================
+    
+    // Sensor testing
+    static bool testSensor(SensorType type, const SensorParams& params = SensorParams());
+    static String runSensorDiagnostics(SensorType type, const SensorParams& params = SensorParams());
+    static bool verifySensorCommunication(SensorType type, const SensorParams& params);
+    
+    // Sensor health checking
+    static bool isSensorHealthy(ISensor* sensor);
+    static String getSensorHealthReport(ISensor* sensor);
+    static std::vector<String> getSensorWarnings(ISensor* sensor);
+    
+    // ================================
+    // BULK OPERATIONS
+    // ================================
+    
+    // // Multi-sensor creation
+    // static std::vector<std::unique_ptr<ISensor>> createSensorSet(const std::vector<SensorType>& types);
+    // static std::vector<std::unique_ptr<ISensor>> createAllAvailableSensors();
+    // static std::vector<std::unique_ptr<ISensor>> createSensorsForParameters(const std::vector<String>& parameters);
+    
+    // Sensor management
+    static bool initializeAllSensors(std::vector<std::unique_ptr<ISensor>>& sensors);
+    static void shutdownAllSensors(std::vector<std::unique_ptr<ISensor>>& sensors);
+    static std::vector<SensorType> getFailedSensors(const std::vector<std::unique_ptr<ISensor>>& sensors);
+    
+    // ================================
+    // CONFIGURATION MANAGEMENT
+    // ================================
+    
+    // Configuration templates
+    static SensorParams getOfficeConfig(SensorType type);
+    static SensorParams getHomeConfig(SensorType type);
+    static SensorParams getOutdoorConfig(SensorType type);
+    static SensorParams getLowPowerConfig(SensorType type);
+    static SensorParams getHighAccuracyConfig(SensorType type);
+    
+    // Configuration serialization
+    static String paramsToJson(const SensorParams& params);
+    static SensorParams paramsFromJson(const String& json);
+    static String paramsToConfigString(const SensorParams& params);
+    static SensorParams paramsFromConfigString(const String& config);
+    
+    // ================================
+    // SENSOR REGISTRATION & PLUGINS
+    // ================================
+    
+    // Sensor registration (for extensibility)
+    static bool registerSensor(SensorType type, const SensorInfo& info);
+    static bool unregisterSensor(SensorType type);
+    static void registerBuiltinSensors();
+    
+    // Plugin system (future extensibility)
+    static bool loadSensorPlugin(const String& pluginPath);
+    static std::vector<String> getLoadedPlugins();
+    static bool unloadSensorPlugin(const String& pluginName);
+    
+    // ================================
+    // UTILITY METHODS
+    // ================================
+    
+    // String conversions
+    static String sensorTypeToString(SensorType type);
+    static SensorType stringToSensorType(const String& str);
+    static String paramsToString(const SensorParams& params);
+    
+    // Hardware detection
+    static std::vector<uint8_t> scanI2CAddresses();
+    static bool isI2CAddressAvailable(uint8_t address);
+    static std::vector<HardwareSerial*> getAvailableSerialPorts();
+    
+    // Error handling
+    static String getLastFactoryError();
+    static void clearFactoryErrors();
+    static bool hasFactoryErrors();
+    
+private:
+    // ================================
+    // INTERNAL METHODS
+    // ================================
+    
+    // Initialization
+    static void initialize();
+    static void registerSCD41();
+    static void registerPMS7003();
+    static void registerBME688();
+    
+    // Sensor creation helpers
+    static std::unique_ptr<ISensor> createSensorInternal(SensorType type, const SensorParams& params);
+    static bool validateSensorType(SensorType type);
+    static bool validateCommonParams(const SensorParams& params);
+    
+    // Hardware helpers
+    static bool setupI2C(int sdaPin, int sclPin);
+    static bool setupSerial(HardwareSerial* serial, uint32_t baudRate);
+    static bool setupPowerControl(int powerPin, bool activeHigh);
+    
+    // Detection helpers
+    static bool detectSCD41(const SensorParams& params);
+    static bool detectPMS7003(const SensorParams& params);
+    static bool detectBME688(const SensorParams& params);
+    
+    // Validation helpers
+    static bool isValidI2CAddress(uint8_t address);
+    static bool isValidGPIOPin(int pin);
+    static bool isValidBaudRate(uint32_t baudRate);
+    
+    // Error management
+    static String lastError;
+    static void setError(const String& error);
+};
+
+// ================================
+// SENSOR BUILDER (Builder Pattern)
+// ================================
+
+class SensorBuilder {
+private:
+    SensorType type;
+    SensorFactory::SensorParams params;
+    
+public:
+    SensorBuilder();
+    explicit SensorBuilder(SensorType sensorType);
+    
+    // Fluent interface for building sensors
+    SensorBuilder& withType(SensorType sensorType);
+    SensorBuilder& withSerial(HardwareSerial* serial);
+    SensorBuilder& withI2C(uint8_t address, int sdaPin = -1, int sclPin = -1);
+    SensorBuilder& withPowerControl(int powerPin, bool activeHigh = true);
+    SensorBuilder& withBaudRate(uint32_t baudRate);
+    SensorBuilder& withWarmupTime(uint32_t warmupMs);
+    SensorBuilder& withReadInterval(uint32_t intervalMs);
+    SensorBuilder& withCalibration(bool autoCalibration, float offset = 0.0, float scale = 1.0);
+    SensorBuilder& withCustomParams(const String& params);
+    
+    // Template configurations
+    SensorBuilder& asOfficeConfig();
+    SensorBuilder& asHomeConfig();
+    SensorBuilder& asOutdoorConfig();
+    SensorBuilder& asLowPowerConfig();
+    SensorBuilder& asHighAccuracyConfig();
+    
+    // Build the sensor
+    std::unique_ptr<ISensor> build();
+    
+    // Validation
+    bool isValid() const;
+    std::vector<String> getValidationErrors() const;
+    SensorFactory::SensorParams getParams() const;
+};
+
+// ================================
+// SENSOR REGISTRY
+// ================================
+
+class SensorRegistry {
+private:
+    std::vector<std::unique_ptr<ISensor>> sensors;
+    std::map<SensorType, size_t> typeToIndex;
+    std::map<String, size_t> nameToIndex;
+    
+public:
+    SensorRegistry();
+    ~SensorRegistry();
+    
+    // Registry operations
+    bool addSensor(std::unique_ptr<ISensor> sensor);
+    bool removeSensor(SensorType type);
+    bool removeSensor(const String& name);
+    void clear();
+    
+    // Sensor access
+    ISensor* getSensor(SensorType type);
+    ISensor* getSensor(const String& name);
+    std::vector<ISensor*> getAllSensors();
+    std::vector<ISensor*> getSensorsByParameter(const String& parameter);
+    
+    // Registry queries
+    size_t getCount() const;
+    bool hasSensor(SensorType type) const;
+    bool hasSensor(const String& name) const;
+    std::vector<SensorType> getRegisteredTypes() const;
+    std::vector<String> getRegisteredNames() const;
+    
+    // Bulk operations
+    bool initializeAll();
+    void shutdownAll();
+    std::vector<SensorType> getFailedSensors() const;
+    std::vector<ISensor*> getReadySensors();
+    
+    // Data collection
+    bool readAllSensors();
+    std::vector<SensorData> collectAllData();
+    SensorData collectCombinedData();
+    
+    // Status and diagnostics
+    String getRegistryStatus() const;
+    bool performRegistryHealthCheck();
+    String generateRegistryReport() const;
+};
+
+// ================================
+// SENSOR UTILITIES
+// ================================
+
+namespace SensorUtils {
+    // Data combination utilities
+    SensorData combineSensorData(const std::vector<SensorData>& dataList);
+    SensorData averageSensorData(const std::vector<SensorData>& dataList);
+    bool isSensorDataConsistent(const std::vector<SensorData>& dataList, float tolerance = 0.1);
+    
+    // Sensor comparison
+    bool areSensorsCompatible(SensorType type1, SensorType type2);
+    std::vector<String> getCommonParameters(SensorType type1, SensorType type2);
+    float compareSensorAccuracy(ISensor* sensor1, ISensor* sensor2, const String& parameter);
+    
+    // Calibration utilities
+    bool isCalibrationNeeded(ISensor* sensor, uint32_t intervalHours = 24);
+    float calculateCalibrationDrift(ISensor* sensor, const std::vector<SensorData>& referenceData);
+    bool performCrossCalibration(ISensor* primary, ISensor* secondary);
+    
+    // Validation utilities
+    bool isSensorDataValid(const SensorData& data, SensorType expectedType);
+    std::vector<String> validateSensorReading(const SensorData& data, SensorType type);
+    bool isSensorReadingInRange(float value, SensorType type, const String& parameter);
+    
+    // Formatting utilities
+    String formatSensorValue(float value, const String& parameter);
+    String formatSensorData(const SensorData& data, bool includeUnits = true);
+    String formatSensorStatus(ISensor* sensor);
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  40/54: include/types/DeviceConfig.h                                      │
+│ 📁 Path: include/types                                                      │
+│ 📊 Size: 9,407 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * types/DeviceConfig.h
+ * Device configuration structure
+ */
+
+#pragma once
+
+#include <Arduino.h>
+#include "SystemEnums.h"
+
+struct DeviceConfig {
+    // ================================
+    // MEASUREMENT SETTINGS
+    // ================================
+    
+    // Thresholds for alerts
+    uint16_t co2Threshold;          // CO2 alert threshold (ppm)
+    uint16_t pm25Threshold;         // PM2.5 alert threshold (μg/m³)
+    uint16_t vocThreshold;          // VOC alert threshold (ppb)
+    int8_t tempMinThreshold;        // Minimum temperature (°C)
+    int8_t tempMaxThreshold;        // Maximum temperature (°C)
+    uint8_t humidityMinThreshold;   // Minimum humidity (%)
+    uint8_t humidityMaxThreshold;   // Maximum humidity (%)
+    
+    // Measurement intervals
+    uint16_t measurementInterval;   // Time between measurements (seconds)
+    uint16_t calibrationInterval;   // Time between auto-calibrations (hours)
+    uint8_t averagingWindow;        // Number of samples for averaging
+    
+    // ================================
+    // DISPLAY SETTINGS
+    // ================================
+    
+    uint8_t displayBrightness;      // Display brightness (0-255)
+    uint8_t displayContrast;        // Display contrast (0-255)
+    uint8_t displayRotation;        // Display rotation (0-3)
+    uint32_t displayTimeout;        // Time before display sleep (ms)
+    bool autoSleep;                 // Enable auto-sleep
+    DisplayMode displayMode;        // Display power mode
+    
+    // Screen preferences
+    ScreenType defaultScreen;       // Default screen on startup
+    bool showAnimations;            // Enable cat animations
+    bool showGraphs;                // Show trend graphs
+    uint8_t refreshRate;            // Screen refresh rate (Hz)
+    
+    // ================================
+    // ALERT SETTINGS
+    // ================================
+    
+    bool alertsEnabled;             // Master alert enable/disable
+    bool soundAlerts;               // Enable sound alerts
+    bool visualAlerts;              // Enable visual alerts
+    bool vibrationAlerts;           // Enable vibration alerts (if available)
+    
+    // Alert timing
+    uint16_t alertDuration;         // Alert duration (seconds)
+    uint8_t alertVolume;            // Alert volume (0-100)
+    uint16_t snoozeTime;            // Snooze duration (minutes)
+    
+    // Alert types per parameter
+    bool co2AlertEnabled;
+    bool pmAlertEnabled;
+    bool vocAlertEnabled;
+    bool temperatureAlertEnabled;
+    bool humidityAlertEnabled;
+    bool batteryAlertEnabled;
+    
+    // ================================
+    // POWER SETTINGS
+    // ================================
+    
+    PowerMode powerMode;            // System power mode
+    uint32_t sleepTimeout;          // Time before deep sleep (ms)
+    uint32_t autoShutdownTime;      // Auto shutdown time (hours)
+    
+    // Battery management
+    uint8_t lowBatteryThreshold;    // Low battery percentage
+    uint8_t criticalBatteryThreshold; // Critical battery percentage
+    bool powerSaveMode;             // Enable power save features
+    
+    // Component power control
+    bool sensorAutoSleep;           // Auto sleep sensors when idle
+    bool displayAutoSleep;          // Auto sleep display when idle
+    bool communicationAutoSleep;    // Auto sleep communication when idle
+    
+    // ================================
+    // COMMUNICATION SETTINGS
+    // ================================
+    
+    // Bluetooth settings
+    bool bleEnabled;                // Enable BLE
+    String deviceName;              // BLE device name
+    String pinCode;                 // BLE pairing PIN (if required)
+    uint16_t connectionTimeout;     // BLE connection timeout (seconds)
+    bool autoReconnect;             // Auto-reconnect to last device
+    
+    // WiFi settings (future use)
+    bool wifiEnabled;               // Enable WiFi
+    String wifiSSID;                // WiFi network name
+    String wifiPassword;            // WiFi password
+    bool wifiAutoConnect;           // Auto-connect to WiFi
+    
+    // Data transmission
+    uint16_t dataTransmissionInterval; // How often to send data (seconds)
+    bool realTimeData;              // Send data in real-time
+    bool batchTransmission;         // Send data in batches
+    uint8_t maxRetryAttempts;       // Max retry attempts for failed transmissions
+    
+    // ================================
+    // CALIBRATION SETTINGS
+    // ================================
+    
+    // Auto-calibration
+    bool autoCalibrationEnabled;    // Enable automatic calibration
+    uint16_t autoCalibrationHours;  // Hours between auto-calibrations
+    
+    // Calibration offsets (applied to readings)
+    float co2CalibrationOffset;     // CO2 offset (ppm)
+    float tempCalibrationOffset;    // Temperature offset (°C)
+    float humidityCalibrationOffset; // Humidity offset (%)
+    float pmCalibrationOffset;      // PM offset (μg/m³)
+    float vocCalibrationOffset;     // VOC offset (ppb)
+    
+    // Calibration factors (multipliers)
+    float co2CalibrationFactor;     // CO2 scale factor
+    float tempCalibrationFactor;    // Temperature scale factor
+    float humidityCalibrationFactor; // Humidity scale factor
+    float pmCalibrationFactor;      // PM scale factor
+    float vocCalibrationFactor;     // VOC scale factor
+    
+    // ================================
+    // DATA STORAGE SETTINGS
+    // ================================
+    
+    uint16_t maxHistoryRecords;     // Maximum stored measurements
+    uint8_t dataCompressionLevel;   // Data compression (0-9, 0=none)
+    bool autoExportData;            // Auto-export data when full
+    String exportFormat;            // Export format (JSON, CSV, etc.)
+    
+    // Data retention
+    uint16_t dataRetentionDays;     // Days to keep data
+    bool autoDeleteOldData;         // Auto-delete old data
+    
+    // ================================
+    // SYSTEM SETTINGS
+    // ================================
+    
+    String firmwareVersion;         // Current firmware version
+    String hardwareRevision;        // Hardware revision
+    uint32_t configVersion;         // Configuration version number
+    uint32_t lastModified;          // Last modification timestamp
+    
+    // System behavior
+    bool debugMode;                 // Enable debug logging
+    uint8_t logLevel;               // Logging level (0-5)
+    bool performanceMonitoring;     // Monitor system performance
+    
+    // Factory settings
+    bool factoryResetProtection;    // Protect against accidental reset
+    String factoryResetPin;         // PIN required for factory reset
+    
+    // ================================
+    // USER PREFERENCES
+    // ================================
+    
+    String userName;                // User name
+    String location;                // Installation location
+    String timezone;                // Timezone string
+    bool use24HourFormat;           // Time format preference
+    String temperatureUnit;         // Temperature unit (C/F)
+    String languageCode;            // Language code (en, uk, etc.)
+    
+    // Personalization
+    uint8_t catPersonality;         // Cat avatar personality (0-5)
+    String customAlertSounds;       // Custom alert sound paths
+    uint16_t customColors[8];       // Custom color palette
+    
+    // ================================
+    // METHODS
+    // ================================
+    
+    // Constructors
+    DeviceConfig();
+    DeviceConfig(const DeviceConfig& other);
+    
+    // Assignment
+    DeviceConfig& operator=(const DeviceConfig& other);
+    
+    // Validation
+    bool isValid() const;
+    std::vector<String> validate() const; // Returns list of validation errors
+    void sanitize(); // Fix invalid values
+    
+    // Factory presets
+    static DeviceConfig getDefaultConfig();
+    static DeviceConfig getOfficeConfig();
+    static DeviceConfig getHomeConfig();
+    static DeviceConfig getBedroomConfig();
+    static DeviceConfig getOutdoorConfig();
+    static DeviceConfig getLowPowerConfig();
+    static DeviceConfig getHighAccuracyConfig();
+    
+    // Serialization
+    String toJson() const;
+    bool fromJson(const String& json);
+    String toConfigFile() const;
+    bool fromConfigFile(const String& configData);
+    
+    // Utility
+    void reset(); // Reset to default values
+    void updateTimestamp(); // Update lastModified
+    uint32_t calculateChecksum() const; // For integrity checking
+    bool hasChanged(const DeviceConfig& other) const;
+    
+    // Comparison
+    bool operator==(const DeviceConfig& other) const;
+    bool operator!=(const DeviceConfig& other) const;
+    
+    // Configuration templates
+    void applyTemplate(const String& templateName);
+    String getCurrentTemplate() const;
+    std::vector<String> getAvailableTemplates() const;
+    
+    // Import/Export
+    bool exportToFile(const String& filename) const;
+    bool importFromFile(const String& filename);
+    String exportToString() const;
+    bool importFromString(const String& data);
+    
+    // Migration (for version updates)
+    bool migrateFromVersion(uint32_t oldVersion);
+    bool needsMigration() const;
+    
+private:
+    // Internal validation helpers
+    bool isThresholdValid(float value, float min, float max) const;
+    bool isPercentageValid(uint8_t value) const;
+    bool isTimeoutValid(uint32_t timeout) const;
+    void setDefaults();
+};
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  41/54: include/types/Event.h                                             │
+│ 📁 Path: include/types                                                      │
+│ 📊 Size: 10,079 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * types/Event.h
+ * Event system data structures
+ */
+
+#pragma once
+
+#include <Arduino.h>
+#include "SystemEnums.h"
+#include <vector>
+#include <memory>
+
+// ================================
+// EVENT STRUCTURE
+// ================================
+
+struct Event {
+    EventType type;             // Event type identifier
+    String data;               // Event data payload (JSON string)
+    String source;             // Event source identifier
+    uint32_t timestamp;        // Event creation time
+    int priority;              // Event priority (0-10, higher = more important)
+    uint32_t id;               // Unique event ID
+    
+    // Event lifecycle
+    bool handled;              // Has this event been processed?
+    uint8_t handlerCount;      // Number of handlers that processed this event
+    uint32_t processingTime;   // Time spent processing (microseconds)
+    
+    // Event context
+    SystemState systemState;   // System state when event occurred
+    AlertLevel alertLevel;     // Associated alert level
+    String context;            // Additional context information
+    
+    // Constructors
+    Event();
+    Event(EventType type, const String& data = "");
+    Event(EventType type, const String& data, int priority);
+    Event(EventType type, const String& data, const String& source, int priority);
+    
+    // Copy constructor and assignment
+    Event(const Event& other);
+    Event& operator=(const Event& other);
+    
+    // Validation
+    bool isValid() const;
+    bool isExpired(uint32_t maxAge) const; // Check if event is too old
+    
+    // Utility methods
+    void markAsHandled();
+    void incrementHandlerCount();
+    void addProcessingTime(uint32_t processingMicros);
+    void updateTimestamp();
+    String getAgeString() const; // Human-readable age
+    
+    // Data payload helpers
+    bool hasData() const;
+    bool setData(const String& key, const String& value);
+    String getData(const String& key, const String& defaultValue = "") const;
+    bool setDataJson(const String& json);
+    String getDataJson() const;
+    
+    // Serialization
+    String toString() const;
+    String toJson() const;
+    bool fromJson(const String& json);
+    
+    // Static factory methods
+    static Event createButtonEvent(const String& buttonId = "main");
+    static Event createSensorEvent(SensorType sensorType, const String& sensorData);
+    static Event createErrorEvent(const String& errorMessage, const String& source);
+    static Event createTimerEvent(const String& timerId);
+    static Event createThresholdEvent(const String& parameter, float value, float threshold);
+    static Event createBatteryEvent(uint8_t percentage, bool isCharging);
+    static Event createCalibrationEvent(SensorType sensorType, bool success);
+    static Event createCommunicationEvent(bool connected, CommunicationType commType);
+    
+    // Comparison operators
+    bool operator==(const Event& other) const;
+    bool operator!=(const Event& other) const;
+    bool operator<(const Event& other) const; // For priority ordering
+    
+private:
+    static uint32_t nextEventId;
+    void generateId();
+};
+
+// ================================
+// EVENT QUEUE
+// ================================
+
+class EventQueue {
+private:
+    std::vector<Event> events;
+    size_t maxSize;
+    mutable bool sorted;
+    
+public:
+    explicit EventQueue(size_t maxSize = Constants::MAX_EVENT_QUEUE_SIZE);
+    ~EventQueue();
+    
+    // Queue operations
+    bool enqueue(const Event& event);
+    Event dequeue();
+    bool isEmpty() const;
+    bool isFull() const;
+    size_t size() const;
+    size_t capacity() const;
+    
+    // Priority queue operations
+    Event peek() const; // Look at highest priority event without removing
+    bool enqueueWithPriority(const Event& event);
+    void sortByPriority() const;
+    
+    // Queue management
+    void clear();
+    bool remove(uint32_t eventId);
+    bool contains(uint32_t eventId) const;
+    bool contains(EventType type) const;
+    
+    // Event filtering
+    std::vector<Event> getEventsByType(EventType type) const;
+    std::vector<Event> getEventsBySource(const String& source) const;
+    std::vector<Event> getEventsByPriority(int minPriority) const;
+    std::vector<Event> getEventsOlderThan(uint32_t ageMs) const;
+    
+    // Queue statistics
+    uint32_t getTotalEventsProcessed() const;
+    uint32_t getAverageProcessingTime() const;
+    Event getOldestEvent() const;
+    Event getNewestEvent() const;
+    
+    // Cleanup operations
+    void removeExpiredEvents(uint32_t maxAge);
+    void removeHandledEvents();
+    void removeEventsByType(EventType type);
+    
+private:
+    uint32_t totalProcessed;
+    uint32_t totalProcessingTime;
+    void maintainMaxSize();
+};
+
+// ================================
+// EVENT STATISTICS
+// ================================
+
+struct EventStatistics {
+    // Count statistics
+    uint32_t totalEvents;
+    uint32_t handledEvents;
+    uint32_t expiredEvents;
+    uint32_t droppedEvents; // Due to queue full
+    
+    // Type distribution
+    std::vector<std::pair<EventType, uint32_t>> eventTypeCounts;
+    
+    // Timing statistics
+    uint32_t averageProcessingTime;
+    uint32_t maxProcessingTime;
+    uint32_t minProcessingTime;
+    uint32_t totalProcessingTime;
+    
+    // Performance metrics
+    float eventsPerSecond;
+    uint32_t peakQueueSize;
+    uint32_t currentQueueSize;
+    
+    // Error statistics
+    uint32_t handlingErrors;
+    String lastError;
+    uint32_t lastErrorTime;
+    
+    EventStatistics();
+    void reset();
+    String toString() const;
+    String toJson() const;
+};
+
+// ================================
+// EVENT FILTER
+// ================================
+
+class EventFilter {
+public:
+    using FilterFunction = std::function<bool(const Event&)>;
+    
+private:
+    std::vector<EventType> allowedTypes;
+    std::vector<EventType> blockedTypes;
+    std::vector<String> allowedSources;
+    std::vector<String> blockedSources;
+    int minPriority;
+    int maxPriority;
+    uint32_t maxAge;
+    FilterFunction customFilter;
+    
+public:
+    EventFilter();
+    
+    // Type filtering
+    void allowType(EventType type);
+    void blockType(EventType type);
+    void allowTypes(const std::vector<EventType>& types);
+    void blockTypes(const std::vector<EventType>& types);
+    void clearTypeFilters();
+    
+    // Source filtering
+    void allowSource(const String& source);
+    void blockSource(const String& source);
+    void allowSources(const std::vector<String>& sources);
+    void blockSources(const std::vector<String>& sources);
+    void clearSourceFilters();
+    
+    // Priority filtering
+    void setPriorityRange(int min, int max);
+    void setMinPriority(int priority);
+    void setMaxPriority(int priority);
+    void clearPriorityFilter();
+    
+    // Age filtering
+    void setMaxAge(uint32_t ageMs);
+    void clearAgeFilter();
+    
+    // Custom filtering
+    void setCustomFilter(FilterFunction filter);
+    void clearCustomFilter();
+    
+    // Filter operations
+    bool shouldAccept(const Event& event) const;
+    std::vector<Event> filterEvents(const std::vector<Event>& events) const;
+    
+    // Utility
+    void reset();
+    String toString() const;
+};
+
+// ================================
+// EVENT BUILDER (Builder Pattern)
+// ================================
+
+class EventBuilder {
+private:
+    Event event;
+    
+public:
+    EventBuilder();
+    explicit EventBuilder(EventType type);
+    
+    // Fluent interface for building events
+    EventBuilder& withType(EventType type);
+    EventBuilder& withData(const String& data);
+    EventBuilder& withSource(const String& source);
+    EventBuilder& withPriority(int priority);
+    EventBuilder& withAlertLevel(AlertLevel level);
+    EventBuilder& withContext(const String& context);
+    EventBuilder& withSystemState(SystemState state);
+    
+    // Data payload builders
+    EventBuilder& addData(const String& key, const String& value);
+    EventBuilder& addData(const String& key, float value);
+    EventBuilder& addData(const String& key, int value);
+    EventBuilder& addData(const String& key, bool value);
+    
+    // Specialized builders
+    EventBuilder& asSensorEvent(SensorType sensorType);
+    EventBuilder& asButtonEvent(const String& buttonId = "main");
+    EventBuilder& asErrorEvent(const String& errorMsg);
+    EventBuilder& asTimerEvent(const String& timerId);
+    EventBuilder& asThresholdEvent(const String& parameter, float value, float threshold);
+    
+    // Build the final event
+    Event build();
+    
+    // Validation
+    bool isValid() const;
+    std::vector<String> getValidationErrors() const;
+};
+
+// ================================
+// EVENT UTILITIES
+// ================================
+
+namespace EventUtils {
+    // Event type checking
+    bool isUserEvent(EventType type);
+    bool isSensorEvent(EventType type);
+    bool isSystemEvent(EventType type);
+    bool isCommunicationEvent(EventType type);
+    bool isTimerEvent(EventType type);
+    bool isErrorEvent(EventType type);
+    bool isCalibrationEvent(EventType type);
+    
+    // Event priority helpers
+    int getDefaultPriority(EventType type);
+    bool isHighPriority(const Event& event);
+    bool isLowPriority(const Event& event);
+    
+    // Event age utilities
+    bool isRecentEvent(const Event& event, uint32_t ageMs = 5000);
+    bool isOldEvent(const Event& event, uint32_t ageMs = 60000);
+    String formatAge(uint32_t ageMs);
+    
+    // Event data helpers
+    bool extractSensorData(const Event& event, float& co2, float& temp, float& humidity);
+    bool extractButtonData(const Event& event, String& buttonId, uint32_t& pressTime);
+    bool extractErrorData(const Event& event, String& errorCode, String& errorMessage);
+    
+    // Event formatting
+    String formatEventForDisplay(const Event& event);
+    String formatEventForLogging(const Event& event);
+    String formatEventForTransmission(const Event& event);
+    
+    // Event validation
+    bool validateEventData(const Event& event);
+    std::vector<String> getValidationErrors(const Event& event);
+    Event sanitizeEvent(const Event& event);
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  42/54: include/types/SensorData.h                                        │
+│ 📁 Path: include/types                                                      │
+│ 📊 Size: 15,605 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * types/SensorData.h
+ * Clean base class and derived classes for sensor data
+ */
+
+#pragma once
+#include <Arduino.h>
+#include <vector>
+#include <memory>
+#include "SystemEnums.h"
+
+// ================================
+// BASE SENSOR DATA CLASS
+// ================================
+
+class SensorDataBase {
+protected:
+    SensorType sensorType;
+    uint32_t timestamp;
+    bool valid;
+    String sensorId;
+    
+public:
+    SensorDataBase(SensorType type, const String& id = "") 
+        : sensorType(type), timestamp(0), valid(false), sensorId(id) {}
+    
+    virtual ~SensorDataBase() = default;
+    
+    // Pure virtual methods - must be implemented by derived classes
+    virtual String toJson() const = 0;
+    virtual String toString() const = 0;
+    virtual bool isDataValid() const = 0;
+    virtual AlertLevel getAlertLevel() const = 0;
+    
+    // Common interface methods
+    SensorType getType() const { return sensorType; }
+    uint32_t getTimestamp() const { return timestamp; }
+    bool isValid() const { return valid && isDataValid(); }
+    String getSensorId() const { return sensorId; }
+    
+    void updateTimestamp() { timestamp = millis(); }
+    void setValid(bool v) { valid = v; }
+    void setSensorId(const String& id) { sensorId = id; }
+    
+    // Age checking
+    uint32_t getAgeMs() const { return millis() - timestamp; }
+    bool isExpired(uint32_t maxAgeMs) const { return getAgeMs() > maxAgeMs; }
+};
+
+// ================================
+// CO2 SENSOR DATA (SCD41)
+// ================================
+
+class CO2SensorData : public SensorDataBase {
+public:
+    float co2;          // ppm
+    float temperature;  // °C
+    float humidity;     // %
+    
+    CO2SensorData(const String& id = "SCD41") 
+        : SensorDataBase(SensorType::CO2_TEMP_HUMIDITY, id)
+        , co2(0.0), temperature(0.0), humidity(0.0) {}
+    
+    // Interface implementation
+    String toJson() const override {
+        return "{\"type\":\"co2\","
+               "\"sensor_id\":\"" + sensorId + "\","
+               "\"timestamp\":" + String(timestamp) + ","
+               "\"co2\":" + String(co2, 1) + ","
+               "\"temperature\":" + String(temperature, 1) + ","
+               "\"humidity\":" + String(humidity, 1) + ","
+               "\"valid\":" + (valid ? "true" : "false") + "}";
+    }
+    
+    String toString() const override {
+        return "CO2: " + String(co2, 1) + "ppm, " +
+               "Temp: " + String(temperature, 1) + "°C, " +
+               "Humidity: " + String(humidity, 1) + "%";
+    }
+    
+    bool isDataValid() const override {
+        return co2 >= 400 && co2 <= 5000 &&
+               temperature >= -40 && temperature <= 125 &&
+               humidity >= 0 && humidity <= 100;
+    }
+    
+    AlertLevel getAlertLevel() const override {
+        if (!isValid()) return AlertLevel::NONE;
+        if (co2 > 2000) return AlertLevel::CRITICAL;
+        if (co2 > 1200) return AlertLevel::WARNING;
+        if (co2 > 800) return AlertLevel::INFO;
+        return AlertLevel::NONE;
+    }
+    
+    // CO2-specific methods
+    String getAirQualityText() const {
+        switch (getAlertLevel()) {
+            case AlertLevel::NONE: return "Excellent";
+            case AlertLevel::INFO: return "Good";
+            case AlertLevel::WARNING: return "Poor";
+            case AlertLevel::CRITICAL: return "Bad";
+            default: return "Unknown";
+        }
+    }
+    
+    bool isComfortableTemperature() const {
+        return temperature >= 20.0 && temperature <= 25.0;
+    }
+    
+    bool isComfortableHumidity() const {
+        return humidity >= 40.0 && humidity <= 60.0;
+    }
+};
+
+// ================================
+// VOC SENSOR DATA (BME688)
+// ================================
+
+class VOCSensorData : public SensorDataBase {
+public:
+    float temperature;      // °C
+    float humidity;         // %
+    float pressure;         // Pa
+    float gasResistance;    // Ohms
+    float vocEstimate;      // ppb (estimated)
+    float vocIndex;         // 0-500 (BSEC index if available)
+    bool heaterStable;      // Gas heater stability
+    bool gasValid;          // Gas measurement validity
+    
+    VOCSensorData(const String& id = "BME688") 
+        : SensorDataBase(SensorType::VOC_GAS, id)
+        , temperature(0.0), humidity(0.0), pressure(0.0)
+        , gasResistance(0.0), vocEstimate(0.0), vocIndex(0.0)
+        , heaterStable(false), gasValid(false) {}
+    
+    // Interface implementation
+    String toJson() const override {
+        return "{\"type\":\"voc\","
+               "\"sensor_id\":\"" + sensorId + "\","
+               "\"timestamp\":" + String(timestamp) + ","
+               "\"temperature\":" + String(temperature, 1) + ","
+               "\"humidity\":" + String(humidity, 1) + ","
+               "\"pressure\":" + String(pressure, 0) + ","
+               "\"gas_resistance\":" + String(gasResistance, 0) + ","
+               "\"voc_estimate\":" + String(vocEstimate, 1) + ","
+               "\"voc_index\":" + String(vocIndex, 1) + ","
+               "\"heater_stable\":" + (heaterStable ? "true" : "false") + ","
+               "\"gas_valid\":" + (gasValid ? "true" : "false") + ","
+               "\"valid\":" + (valid ? "true" : "false") + "}";
+    }
+    
+    String toString() const override {
+        return "Temp: " + String(temperature, 1) + "°C, " +
+               "Humidity: " + String(humidity, 1) + "%, " +
+               "Pressure: " + String(pressure * 0.00750062, 1) + "mmHg, " +
+               "VOC: " + String(vocEstimate, 1) + "ppb, " +
+               "Gas: " + String(gasResistance, 0) + "Ω";
+    }
+        
+    bool isDataValid() const override {
+        return temperature >= -40 && temperature <= 85 &&
+               humidity >= 0 && humidity <= 100 &&
+               pressure >= 30000 && pressure <= 110000 &&
+               gasResistance > 0;
+    }
+    
+    AlertLevel getAlertLevel() const override {
+        if (!isValid() || !gasValid) return AlertLevel::NONE;
+        if (vocEstimate > 200) return AlertLevel::CRITICAL;
+        if (vocEstimate > 100) return AlertLevel::WARNING;
+        if (vocEstimate > 50) return AlertLevel::INFO;
+        return AlertLevel::NONE;
+    }
+    
+    // VOC-specific methods
+    float getPressureHPa() const { return pressure / 100.0; }
+    
+    float getAltitudeEstimate(float seaLevelPressure = 101325.0) const {
+        return 44330.0 * (1.0 - pow(pressure / seaLevelPressure, 0.1903));
+    }
+    
+    String getVOCQualityText() const {
+        switch (getAlertLevel()) {
+            case AlertLevel::NONE: return "Clean";
+            case AlertLevel::INFO: return "Acceptable";
+            case AlertLevel::WARNING: return "Contaminated";
+            case AlertLevel::CRITICAL: return "Heavily Polluted";
+            default: return "Unknown";
+        }
+    }
+};
+
+// ================================
+// PARTICULATE MATTER DATA (PMS7003)
+// ================================
+
+class PMSensorData : public SensorDataBase {
+public:
+    float pm1_0_atmospheric;     // μg/m³ (atmospheric)
+    float pm2_5_atmospheric;     // μg/m³ (atmospheric) 
+    float pm10_atmospheric;      // μg/m³ (atmospheric)
+    float pm1_0_standard;        // μg/m³ (standard)
+    float pm2_5_standard;        // μg/m³ (standard)
+    float pm10_standard;         // μg/m³ (standard)
+    
+    // Particle counts (per 0.1L)
+    uint16_t particles_03um;
+    uint16_t particles_05um; 
+    uint16_t particles_10um;
+    uint16_t particles_25um;
+    uint16_t particles_50um;
+    uint16_t particles_100um;
+    
+    PMSensorData(const String& id = "PMS7003") 
+        : SensorDataBase(SensorType::PARTICULATE_MATTER, id)
+        , pm1_0_atmospheric(0.0), pm2_5_atmospheric(0.0), pm10_atmospheric(0.0)
+        , pm1_0_standard(0.0), pm2_5_standard(0.0), pm10_standard(0.0)
+        , particles_03um(0), particles_05um(0), particles_10um(0)
+        , particles_25um(0), particles_50um(0), particles_100um(0) {}
+    
+    // Interface implementation
+    String toJson() const override {
+        return "{\"type\":\"pm\","
+               "\"sensor_id\":\"" + sensorId + "\","
+               "\"timestamp\":" + String(timestamp) + ","
+               "\"pm1_0\":" + String(pm1_0_atmospheric, 1) + ","
+               "\"pm2_5\":" + String(pm2_5_atmospheric, 1) + ","
+               "\"pm10\":" + String(pm10_atmospheric, 1) + ","
+               "\"particles_03um\":" + String(particles_03um) + ","
+               "\"particles_25um\":" + String(particles_25um) + ","
+               "\"valid\":" + (valid ? "true" : "false") + "}";
+    }
+    
+    String toString() const override {
+        return "PM1.0: " + String(pm1_0_atmospheric, 1) + "μg/m³, " +
+               "PM2.5: " + String(pm2_5_atmospheric, 1) + "μg/m³, " +
+               "PM10: " + String(pm10_atmospheric, 1) + "μg/m³";
+    }
+    
+    bool isDataValid() const override {
+        return pm1_0_atmospheric >= 0 && pm1_0_atmospheric <= 1000 &&
+               pm2_5_atmospheric >= 0 && pm2_5_atmospheric <= 1000 &&
+               pm10_atmospheric >= 0 && pm10_atmospheric <= 1000 &&
+               pm2_5_atmospheric >= pm1_0_atmospheric && // PM2.5 >= PM1.0
+               pm10_atmospheric >= pm2_5_atmospheric;    // PM10 >= PM2.5
+    }
+    
+    AlertLevel getAlertLevel() const override {
+        if (!isValid()) return AlertLevel::NONE;
+        
+        // Using WHO/EPA PM2.5 standards
+        if (pm2_5_atmospheric > 55.4) return AlertLevel::CRITICAL;   // Unhealthy
+        if (pm2_5_atmospheric > 35.4) return AlertLevel::WARNING;    // Unhealthy for sensitive
+        if (pm2_5_atmospheric > 12.0) return AlertLevel::INFO;       // Moderate
+        return AlertLevel::NONE;                                     // Good
+    }
+    
+    // PM-specific methods
+    int getAQIPM25() const {
+        // EPA AQI calculation for PM2.5
+        float pm = pm2_5_atmospheric;
+        if (pm <= 12.0) return (50.0/12.0) * pm;
+        if (pm <= 35.4) return 51 + ((100-51)/(35.4-12.1)) * (pm-12.1);
+        if (pm <= 55.4) return 101 + ((150-101)/(55.4-35.5)) * (pm-35.5);
+        if (pm <= 150.4) return 151 + ((200-151)/(150.4-55.5)) * (pm-55.5);
+        if (pm <= 250.4) return 201 + ((300-201)/(250.4-150.5)) * (pm-150.5);
+        return 301 + ((500-301)/(500.4-250.5)) * (pm-250.5);
+    }
+    
+    String getPMQualityText() const {
+        switch (getAlertLevel()) {
+            case AlertLevel::NONE: return "Clean";
+            case AlertLevel::INFO: return "Moderate";
+            case AlertLevel::WARNING: return "Unhealthy for Sensitive";
+            case AlertLevel::CRITICAL: return "Unhealthy";
+            default: return "Unknown";
+        }
+    }
+};
+
+// ================================
+// COMBINED SENSOR DATA MANAGER
+// ================================
+
+// class CombinedSensorData {
+// private:
+//     std::vector<std::unique_ptr<SensorDataBase>> sensorData;
+//     uint32_t lastUpdate;
+    
+// public:
+//     CombinedSensorData() : lastUpdate(0) {}
+    
+//     // Add sensor data
+//     void addCO2Data(const CO2SensorData& data) {
+//         auto co2Data = std::make_unique<CO2SensorData>(data);
+//         addOrUpdateSensor(std::move(co2Data));
+//     }
+    
+//     void addVOCData(const VOCSensorData& data) {
+//         auto vocData = std::make_unique<VOCSensorData>(data);
+//         addOrUpdateSensor(std::move(vocData));
+//     }
+    
+//     void addPMData(const PMSensorData& data) {
+//         auto pmData = std::make_unique<PMSensorData>(data);
+//         addOrUpdateSensor(std::move(pmData));
+//     }
+    
+//     // Get sensor data by type
+//     CO2SensorData* getCO2Data() const {
+//         return static_cast<CO2SensorData*>(getSensorData(SensorType::CO2_TEMP_HUMIDITY));
+//     }
+    
+//     VOCSensorData* getVOCData() const {
+//         return static_cast<VOCSensorData*>(getSensorData(SensorType::VOC_GAS));
+//     }
+    
+//     PMSensorData* getPMData() const {
+//         return static_cast<PMSensorData*>(getSensorData(SensorType::PARTICULATE_MATTER));
+//     }
+    
+//     // Overall air quality assessment
+//     AlertLevel getOverallAlertLevel() const {
+//         AlertLevel maxLevel = AlertLevel::NONE;
+        
+//         for (const auto& sensor : sensorData) {
+//             if (sensor->isValid()) {
+//                 AlertLevel level = sensor->getAlertLevel();
+//                 if (level > maxLevel) {
+//                     maxLevel = level;
+//                 }
+//             }
+//         }
+        
+//         return maxLevel;
+//     }
+    
+//     // Data availability checks
+//     bool hasCO2Data() const { return getCO2Data() && getCO2Data()->isValid(); }
+//     bool hasVOCData() const { return getVOCData() && getVOCData()->isValid(); }
+//     bool hasPMData() const { return getPMData() && getPMData()->isValid(); }
+//     bool hasTemperatureData() const { return hasCO2Data() || hasVOCData(); }
+//     bool hasHumidityData() const { return hasCO2Data() || hasVOCData(); }
+//     bool hasPressureData() const { return hasVOCData(); }
+    
+//     // Get preferred values (with fallback logic)
+//     float getPreferredTemperature() const {
+//         if (hasCO2Data()) return getCO2Data()->temperature;
+//         if (hasVOCData()) return getVOCData()->temperature;
+//         return 0.0;
+//     }
+    
+//     float getPreferredHumidity() const {
+//         if (hasCO2Data()) return getCO2Data()->humidity;
+//         if (hasVOCData()) return getVOCData()->humidity;
+//         return 0.0;
+//     }
+    
+//     // Export all data
+//     String toJson() const {
+//         String json = "{\"sensors\":[";
+//         bool first = true;
+        
+//         for (const auto& sensor : sensorData) {
+//             if (!first) json += ",";
+//             json += sensor->toJson();
+//             first = false;
+//         }
+        
+//         json += "],\"overall_alert_level\":" + String((int)getOverallAlertLevel());
+//         json += ",\"timestamp\":" + String(millis()) + "}";
+//         return json;
+//     }
+    
+//     // Summary for display
+//     String getSummary() const {
+//         String summary;
+//         if (hasCO2Data()) summary += getCO2Data()->toString() + "\n";
+//         if (hasVOCData()) summary += getVOCData()->toString() + "\n";
+//         if (hasPMData()) summary += getPMData()->toString() + "\n";
+//         return summary;
+//     }
+    
+//     // Get cat mood based on overall air quality
+//     String getCatMood() const {
+//         switch (getOverallAlertLevel()) {
+//             case AlertLevel::NONE: return "😸 Very Happy!";
+//             case AlertLevel::INFO: return "😺 Content";
+//             case AlertLevel::WARNING: return "😿 Concerned";
+//             case AlertLevel::CRITICAL: return "🙀 Stressed!";
+//             default: return "😐 Neutral";
+//         }
+//     }
+    
+// private:
+//     void addOrUpdateSensor(std::unique_ptr<SensorDataBase> newData) {
+//         // Remove existing sensor of same type
+//         sensorData.erase(
+//             std::remove_if(sensorData.begin(), sensorData.end(),
+//                 [&](const std::unique_ptr<SensorDataBase>& existing) {
+//                     return existing->getType() == newData->getType();
+//                 }),
+//             sensorData.end()
+//         );
+        
+//         // Add new data
+//         sensorData.push_back(std::move(newData));
+//         lastUpdate = millis();
+//     }
+    
+//     SensorDataBase* getSensorData(SensorType type) const {
+//         for (const auto& sensor : sensorData) {
+//             if (sensor->getType() == type) {
+//                 return sensor.get();
+//             }
+//         }
+//         return nullptr;
+//     }
+// };
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  43/54: include/types/SystemEnums.h                                       │
+│ 📁 Path: include/types                                                      │
+│ 📊 Size: 3,945 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * types/SystemEnums.h
+ * System-wide enumerations - header only
+ */
+
+#pragma once
+#include <Arduino.h>
+
+// ================================
+// SENSOR TYPES
+// ================================
+
+enum class SensorType {
+    UNKNOWN = 0,
+    CO2_TEMP_HUMIDITY = 1,   // SCD41
+    PARTICULATE_MATTER = 2,   // PMS7003
+    VOC_GAS = 3,             // BME688
+    COMBINED = 4             // Multiple sensors
+};
+
+// ================================
+// DISPLAY TYPES
+// ================================
+
+enum class ScreenType {
+    BOOT = 0,
+    MAIN = 1,
+    SETTINGS = 2,
+    CALIBRATION = 3,
+    STATISTICS = 4,
+    DIAGNOSTICS = 5,
+    SLEEP = 6,
+    ERROR = 7,
+    UPDATE = 8,
+    FACTORY_RESET = 9
+};
+
+// ================================
+// SYSTEM STATES
+// ================================
+
+enum class SystemState {
+    UNDEFINED = 0,
+    INITIALIZING = 1,
+    RUNNING = 2,
+    SLEEPING = 3,
+    CALIBRATING = 4,
+    ERROR = 5,
+    UPDATING = 6,
+    MAINTENANCE = 7,
+    FACTORY_RESET = 8,
+    SHUTTING_DOWN = 9
+};
+
+// ================================
+// EVENT TYPES
+// ================================
+
+enum class EventType {
+    // User input events
+    BUTTON_PRESS = 100,
+    BUTTON_LONG_PRESS = 101,
+    BUTTON_DOUBLE_PRESS = 102,
+    
+    // Sensor events
+    SENSOR_DATA_READY = 200,
+    SENSOR_ERROR = 201,
+    SENSOR_CALIBRATION_NEEDED = 202,
+    SENSOR_DISCONNECTED = 203,
+    
+    // Communication events
+    BLE_CONNECTED = 300,
+    BLE_DISCONNECTED = 301,
+    BLE_DATA_RECEIVED = 302,
+    
+    // System events
+    THRESHOLD_EXCEEDED = 400,
+    LOW_BATTERY = 401,
+    CRITICAL_BATTERY = 402,
+    
+    // Timer events
+    TIMER_EXPIRED = 500,
+    MEASUREMENT_TIMER = 501,
+    
+    // Error events
+    ERROR_OCCURRED = 600,
+    SYSTEM_RESET = 601,
+    
+    // Calibration events
+    CALIBRATION_START = 700,
+    CALIBRATION_COMPLETE = 701,
+    CALIBRATION_FAILED = 702
+};
+
+// ================================
+// ALERT LEVELS
+// ================================
+
+enum class AlertLevel {
+    NONE = 0,
+    INFO = 1,
+    WARNING = 2,
+    CRITICAL = 3,
+    EMERGENCY = 4
+};
+
+// ================================
+// DATA QUALITY LEVELS
+// ================================
+
+enum class DataQuality {
+    INVALID = 0,
+    POOR = 1,
+    FAIR = 2,
+    GOOD = 3,
+    EXCELLENT = 4
+};
+
+// ================================
+// COMMUNICATION PROTOCOLS
+// ================================
+
+enum class CommunicationType {
+    NONE = 0,
+    BLE = 1,
+    WIFI = 2,
+    SERIAL_ = 3
+};
+
+// ================================
+// CALIBRATION TYPES
+// ================================
+
+enum class CalibrationType {
+    NONE = 0,
+    ZERO_POINT = 1,
+    SPAN = 2,
+    MULTI_POINT = 3,
+    FACTORY = 4,
+    USER = 5
+};
+
+// ================================
+// POWER MODES
+// ================================
+
+enum class PowerMode {
+    NORMAL = 0,
+    ECO = 1,
+    LOW_POWER = 2,
+    ULTRA_LOW_POWER = 3,
+    DEEP_SLEEP = 4
+};
+
+// ================================
+// DISPLAY MODES
+// ================================
+
+enum class DisplayMode {
+    ALWAYS_ON = 0,
+    AUTO_BRIGHTNESS = 1,
+    POWER_SAVE = 2,
+    SLEEP_MODE = 3
+};
+
+// ================================
+// UTILITY FUNCTIONS
+// ================================
+
+inline String sensorTypeToString(SensorType type) {
+    switch (type) {
+        case SensorType::CO2_TEMP_HUMIDITY: return "CO2_TEMP_HUMIDITY";
+        case SensorType::PARTICULATE_MATTER: return "PARTICULATE_MATTER";
+        case SensorType::VOC_GAS: return "VOC_GAS";
+        case SensorType::COMBINED: return "COMBINED";
+        default: return "UNKNOWN";
+    }
+}
+
+inline String alertLevelToString(AlertLevel level) {
+    switch (level) {
+        case AlertLevel::NONE: return "NONE";
+        case AlertLevel::INFO: return "INFO";
+        case AlertLevel::WARNING: return "WARNING";
+        case AlertLevel::CRITICAL: return "CRITICAL";
+        case AlertLevel::EMERGENCY: return "EMERGENCY";
+        default: return "UNKNOWN";
+    }
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  44/54: include/utils/Logger.h                                            │
+│ 📁 Path: include/utils                                                      │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  45/54: include/utils/SystemUtils.h                                       │
+│ 📁 Path: include/utils                                                      │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  46/54: include/utils/ValidationUtils.h                                   │
+│ 📁 Path: include/utils                                                      │
+│ 📊 Size: 0 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+🗂️  [EMPTY FILE]
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+================================================================================
+📂 SOURCE FILES
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  47/54: src/Bluetooth.cpp                                                 │
+│ 📁 Path: src                                                                │
+│ 📊 Size: 1,490 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+// #include "Bluetooth.h"
+
+// // Constructor implementation
+// Bluetooth::Bluetooth(const char* deviceName) : _deviceName(deviceName) {}
+
+// // Initialize Bluetooth
+// void Bluetooth::begin() {
+//     Serial.println("Initializing Bluetooth...");
+//     if (!SerialBT.begin(_deviceName)) { // Start Bluetooth with the device name
+//         Serial.println("An error occurred initializing Bluetooth");
+//     } else {
+//         Serial.println("Bluetooth initialized successfully");
+//         Serial.println("Device Name: " + String(_deviceName));
+//         Serial.println("You can now pair your Android device with ESP32");
+//     }
+// }
+
+// // Send a message via Bluetooth
+// void Bluetooth::sendMessage(const String& message) {
+//     if (SerialBT.hasClient()) {
+//         SerialBT.println(message);
+//         Serial.println("Sent via Bluetooth: " + message);
+//     } else {
+//         Serial.println("No Bluetooth client connected. Unable to send message.");
+//     }
+// }
+
+// // Receive a message via Bluetooth
+// bool Bluetooth::receiveMessage(String& message) {
+//     if (SerialBT.available()) {
+//         message = SerialBT.readStringUntil('\n');
+//         message.trim(); // Remove any trailing whitespace or newline characters
+//         Serial.println("Received via Bluetooth: " + message);
+//         return true;
+//     }
+//     return false;
+// }
+
+// // Check if a Bluetooth client is connected
+// bool Bluetooth::isConnected() {
+//     return SerialBT.hasClient();
+// }
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  48/54: src/CCS811Sensor.cpp                                              │
+│ 📁 Path: src                                                                │
+│ 📊 Size: 1,930 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#include "CCS811Sensor.h"
+#include <Arduino.h>
+
+// Constructor with default I2C address
+CCS811Sensor::CCS811Sensor(uint8_t i2cAddress) : ccs811(i2cAddress) {
+    // Constructor body (empty)
+}
+
+// Initialize the CCS811 sensor
+bool CCS811Sensor::begin(TwoWire &wirePort) {
+    if (!ccs811.begin(wirePort)) {
+        Serial.println("CCS811 initialization failed. Check connections.");
+        return false;
+    }
+
+    // Wait for the sensor to boot up (recommended by SparkFun)
+    delay(1000);
+
+    // Start the CCS811 application firmware
+    if (!ccs811.appValid()) {
+        Serial.println("CCS811 app firmware not valid. Attempting to restart...");
+        if (!ccs811.begin(wirePort)) { // Re-initialize if needed
+            Serial.println("Failed to start CCS811 app firmware.");
+            return false;
+        }
+    }
+
+    // Set Drive Mode to 1 measurement per second
+    // Replace 'ModeConstantPower1' with the correct enum or constant from the new library
+    if (ccs811.setDriveMode(1) != CCS811::CCS811_Status_e::CCS811_Stat_SUCCESS) {
+        Serial.println("Failed to set CCS811 Drive Mode.");
+        return false;
+    }
+
+    Serial.println("CCS811 initialized successfully.");
+    return true;
+}
+
+// Read eCO2 and TVOC data
+bool CCS811Sensor::readData(uint16_t &eCO2, float &TVOC) {
+    if (ccs811.dataAvailable()) {
+        if (ccs811.readAlgorithmResults()) {
+            Serial.println("Error reading CCS811 algorithm results.");
+            return false;
+        }
+
+        eCO2 = ccs811.getCO2();
+        TVOC = ccs811.getTVOC();
+
+        return true;
+    }
+
+    return false; // No new data available
+}
+
+// Set environmental data for improved accuracy
+void CCS811Sensor::setEnvironmentalData(float temperature, float humidity) {
+    ccs811.setEnvironmentalData(temperature, humidity);
+}
+
+// Get human-readable status string
+const char* CCS811Sensor::getStatusString() {
+    return ccs811.statusString();
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  49/54: src/CoToMeterController.cpp                                       │
+│ 📁 Path: src                                                                │
+│ 📊 Size: 13,503 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#include "CoToMeterController.h"
+#include "sensors/SCD41Sensor.h"
+#include "sensors/BME688Sensor.h"
+#include "display/SSD1351Display.h" 
+#include <Wire.h>
+#include <SPI.h>
+
+CoToMeterController::CoToMeterController() 
+    : lastMeasurement(0)
+    , measurementInterval(10000) // 10 seconds
+    , co2Data(nullptr)
+    , vocData(nullptr)
+{
+}
+
+bool CoToMeterController::initialize() {
+    Serial.begin(115200);
+    delay(1000);
+    
+    Serial.println("🚀 CoToMeter v2.0 Starting...");
+    Serial.println("🔧 Initializing dual sensor system with SSD1351 OLED...");
+    
+    // Initialize I2C for SCD41
+    Wire.begin(21, 22); // SDA=21, SCL=22
+    Wire.setClock(100000);
+    Serial.println("📡 I2C initialized for SCD41 (SDA=21, SCL=22)");
+    
+    // Initialize SPI for BME688 AND SSD1351 Display (shared bus)
+    SPI.begin(18, 19, 23, 4); // SCK=18, MISO=19, MOSI=23, CS=4 for BME688
+    Serial.println("📡 SPI initialized for BME688 + SSD1351 Display");
+    
+    // Initialize SSD1351 OLED display FIRST
+    display.reset(new SSD1351Display());
+    if (!display->initialize()) {
+        Serial.println("❌ SSD1351 display initialization failed");
+        Serial.println("💡 Check OLED wiring: CS=5, DC=16, RST=17, SCK=18, MOSI=23");
+        return false;
+    }
+    
+    // Show startup message on OLED
+    display->showMessage("🐱 CoToMeter\n\nInitializing\nsensors...");
+    
+    // Create and initialize SCD41 sensor (I2C)
+    Serial.println("\n🌬️ Initializing SCD41 CO2 sensor via I2C...");
+    auto scd41Sensor = std::unique_ptr<ISensor>(new SCD41Sensor());
+    if (!scd41Sensor->initialize()) {
+        Serial.println("❌ SCD41 initialization failed: " + scd41Sensor->getLastError());
+        display->showError("SCD41 Failed\n" + scd41Sensor->getLastError());
+        return false;
+    }
+    sensors.push_back(std::move(scd41Sensor));
+    Serial.println("✅ SCD41 sensor initialized successfully");
+    
+    // Update display
+    display->showMessage("SCD41 ✅\n\nInitializing\nBME688...");
+    delay(1000);
+    
+    // Create and initialize BME688 sensor (SPI)
+    Serial.println("\n🌡️ Initializing BME688 VOC sensor via SPI...");
+    auto bme688Sensor = std::unique_ptr<ISensor>(new BME688Sensor(0x76, 4)); // CS=4
+    if (!bme688Sensor->initialize()) {
+        Serial.println("❌ BME688 initialization failed: " + bme688Sensor->getLastError());
+        display->showError("BME688 Failed\n" + bme688Sensor->getLastError());
+        return false;
+    }
+    sensors.push_back(std::move(bme688Sensor));
+    Serial.println("✅ BME688 sensor initialized successfully");
+    
+    // Show success on OLED
+    display->showMessage("🐱 CoToMeter\n\nSCD41 ✅\nBME688 ✅\n\nStarting...");
+    
+    Serial.println("\n✅ CoToMeter initialized with SSD1351 OLED!");
+    Serial.println("📊 Starting measurements in 3 seconds...");
+    delay(3000);
+    
+    return true;
+}
+
+void CoToMeterController::loop() {
+    uint32_t currentTime = millis();
+    
+    // Take periodic measurements
+    if (currentTime - lastMeasurement >= measurementInterval) {
+        Serial.println("\n" + String("=").substring(0, 50));
+        Serial.println("📊 Taking measurements from both sensors...");
+        
+        bool hasNewData = false;
+        
+        // Read from all sensors
+        for (auto& sensor : sensors) {
+            if (sensor->readData()) {
+                SensorDataBase* data = sensor->getCurrentData();
+                
+                // Store data by type
+                if (data->getType() == SensorType::CO2_TEMP_HUMIDITY) {
+                    co2Data = static_cast<CO2SensorData*>(data);
+                    Serial.println("✅ SCD41 data updated");
+                    hasNewData = true;
+                }
+                else if (data->getType() == SensorType::VOC_GAS) {
+                    vocData = static_cast<VOCSensorData*>(data);
+                    Serial.println("✅ BME688 data updated");
+                    hasNewData = true;
+                }
+            } else {
+                Serial.println("⚠️ Failed to read from sensor: " + sensor->getLastError());
+            }
+        }
+        
+        // Display combined data and run analysis
+        if (hasNewData) {
+            printCombinedData();
+            checkAlerts();
+            
+            // Show combined data on OLED using the new method
+            SSD1351Display* oledDisplay = static_cast<SSD1351Display*>(display.get());
+            if (oledDisplay) {
+                oledDisplay->showCombinedSensorData(
+                    (co2Data && co2Data->isValid()) ? co2Data : nullptr,
+                    (vocData && vocData->isValid()) ? vocData : nullptr
+                );
+            }
+        } else {
+            display->showError("No sensor data\navailable");
+        }
+        
+        lastMeasurement = currentTime;
+    }
+    
+    // Quick update cycle for display refresh
+    delay(100);
+}
+
+void CoToMeterController::printCombinedData() {
+    Serial.println("\n╔═══════════════════════════════════════════════════════╗");
+    Serial.println("║                🐱 COTOMETER READINGS 🐱               ║");
+    Serial.println("╠═══════════════════════════════════════════════════════╣");
+    
+    // CO2 Data from SCD41
+    if (co2Data && co2Data->isValid()) {
+        Serial.printf("║ 🌬️  CO2:         %4.0f ppm                        ║\n", co2Data->co2);
+        Serial.printf("║ 🌡️  Temperature: %5.1f°C (SCD41)                ║\n", co2Data->temperature);
+        Serial.printf("║ 💧  Humidity:    %5.1f%% (SCD41)                 ║\n", co2Data->humidity);
+        Serial.println("╠═══════════════════════════════════════════════════════╣");
+    } else {
+        Serial.println("║ 🌬️  CO2:         No data available                  ║");
+        Serial.println("╠═══════════════════════════════════════════════════════╣");
+    }
+    
+    // VOC Data from BME688
+    if (vocData && vocData->isValid()) {
+        Serial.printf("║ 🧪  VOC Estimate: %5.1f ppb                        ║\n", vocData->vocEstimate);
+        Serial.printf("║ 🔥  Gas Resist:   %8.0f Ω                       ║\n", vocData->gasResistance);
+        Serial.printf("║ 🌡️  Temperature: %5.1f°C (BME688)               ║\n", vocData->temperature);
+        Serial.printf("║ 💧  Humidity:    %5.1f%% (BME688)                ║\n", vocData->humidity);
+        Serial.printf("║ 🌪️  Pressure:    %6.1f hPa                       ║\n", vocData->pressure / 100.0);
+        Serial.printf("║ 🔥  Heater:      %s                              ║\n", 
+                     vocData->heaterStable ? "Stable  " : "Unstable");
+        Serial.println("╠═══════════════════════════════════════════════════════╣");
+    } else {
+        Serial.println("║ 🧪  VOC:          No data available                  ║");
+        Serial.println("╠═══════════════════════════════════════════════════════╣");
+    }
+    
+    // Temperature comparison
+    if (co2Data && co2Data->isValid() && vocData && vocData->isValid()) {
+        float tempDiff = abs(co2Data->temperature - vocData->temperature);
+        Serial.printf("║ 📊  Temp Diff:   %5.1f°C between sensors         ║\n", tempDiff);
+        if (tempDiff > 2.0) {
+            Serial.println("║ ⚠️   Warning: Large temperature difference!        ║");
+        }
+        
+        float humDiff = abs(co2Data->humidity - vocData->humidity);
+        Serial.printf("║ 📊  Humidity Diff: %5.1f%% between sensors        ║\n", humDiff);
+        if (humDiff > 5.0) {
+            Serial.println("║ ⚠️   Warning: Large humidity difference!           ║");
+        }
+        Serial.println("╠═══════════════════════════════════════════════════════╣");
+    }
+    
+    // Combined assessment
+    String catMood = getCombinedCatMood();
+    Serial.printf("║ 🐱  Cat Mood:    %-28s  ║\n", catMood.c_str());
+    
+    // Air quality recommendations
+    String recommendation = "Monitor levels";
+    if (co2Data && co2Data->isValid()) {
+        if (co2Data->co2 > 1500) {
+            recommendation = "URGENT: Ventilate now!";
+        } else if (co2Data->co2 > 1000) {
+            recommendation = "Open windows for fresh air";
+        } else if (co2Data->co2 < 600) {
+            recommendation = "Excellent air quality!";
+        }
+    }
+    if (vocData && vocData->isValid() && vocData->vocEstimate > 200) {
+        recommendation = "Check for VOC sources!";
+    }
+    Serial.printf("║ 💡  Advice:      %-28s  ║\n", recommendation.c_str());
+    
+    // System status
+    uint32_t uptime = millis() / 1000;
+    Serial.printf("║ ⏰  Uptime:      %02d:%02d:%02d                        ║\n", 
+                 (int)(uptime/3600), (int)((uptime%3600)/60), (int)(uptime%60));
+    Serial.printf("║ 🧠  Free Memory: %d bytes                        ║\n", ESP.getFreeHeap());
+    
+    Serial.println("╚═══════════════════════════════════════════════════════╝");
+}
+
+void CoToMeterController::checkAlerts() {
+    std::vector<String> alerts;
+    
+    // Check CO2 levels
+    if (co2Data && co2Data->isValid()) {
+        if (co2Data->co2 > 2000) {
+            alerts.push_back("🚨 CRITICAL: CO2 extremely high (" + String(co2Data->co2, 0) + " ppm)");
+        } else if (co2Data->co2 > 1200) {
+            alerts.push_back("⚠️ WARNING: CO2 elevated (" + String(co2Data->co2, 0) + " ppm)");
+        }
+    }
+    
+    // Check VOC levels
+    if (vocData && vocData->isValid()) {
+        if (vocData->vocEstimate > 200) {
+            alerts.push_back("🚨 CRITICAL: VOC levels high (" + String(vocData->vocEstimate, 1) + " ppb)");
+        } else if (vocData->vocEstimate > 100) {
+            alerts.push_back("⚠️ WARNING: VOC detected (" + String(vocData->vocEstimate, 1) + " ppb)");
+        }
+    }
+    
+    // Check temperature comfort (using both sensors)
+    if (co2Data && co2Data->isValid()) {
+        if (co2Data->temperature < 18) {
+            alerts.push_back("🥶 INFO: Temperature too cold (SCD41: " + String(co2Data->temperature, 1) + "°C)");
+        } else if (co2Data->temperature > 26) {
+            alerts.push_back("🥵 INFO: Temperature too hot (SCD41: " + String(co2Data->temperature, 1) + "°C)");
+        }
+    }
+    
+    // Check sensor agreement
+    if (co2Data && co2Data->isValid() && vocData && vocData->isValid()) {
+        float tempDiff = abs(co2Data->temperature - vocData->temperature);
+        float humDiff = abs(co2Data->humidity - vocData->humidity);
+        
+        if (tempDiff > 3.0) {
+            alerts.push_back("⚠️ WARNING: Large temperature difference between sensors (" + String(tempDiff, 1) + "°C)");
+        }
+        if (humDiff > 10.0) {
+            alerts.push_back("⚠️ WARNING: Large humidity difference between sensors (" + String(humDiff, 1) + "%)");
+        }
+    }
+    
+    // Check BME688 heater stability
+    if (vocData && vocData->isValid() && !vocData->heaterStable) {
+        alerts.push_back("ℹ️ INFO: BME688 gas heater warming up - VOC readings may be inaccurate");
+    }
+    
+    // Display alerts on Serial and OLED if critical
+    if (!alerts.empty()) {
+        Serial.println("\n🚨 ALERTS:");
+        for (const String& alert : alerts) {
+            Serial.println("   " + alert);
+        }
+        Serial.println();
+        
+        // Show critical alerts on OLED
+        bool hasCritical = false;
+        for (const String& alert : alerts) {
+            if (alert.indexOf("CRITICAL") >= 0) {
+                hasCritical = true;
+                break;
+            }
+        }
+        
+        if (hasCritical) {
+            display->showError("CRITICAL ALERT!\nCheck levels");
+            delay(2000); // Show alert for 2 seconds
+        }
+    }
+}
+
+String CoToMeterController::getCombinedCatMood() {
+    AlertLevel maxAlert = AlertLevel::NONE;
+    
+    // Get highest alert level from both sensors
+    if (co2Data && co2Data->isValid()) {
+        AlertLevel co2Alert = co2Data->getAlertLevel();
+        if (co2Alert > maxAlert) maxAlert = co2Alert;
+    }
+    
+    if (vocData && vocData->isValid()) {
+        AlertLevel vocAlert = vocData->getAlertLevel();
+        if (vocAlert > maxAlert) maxAlert = vocAlert;
+    }
+    
+    // Return cat mood based on highest alert
+    switch (maxAlert) {
+        case AlertLevel::NONE: return "😸 Very Happy!";
+        case AlertLevel::INFO: return "😺 Content";
+        case AlertLevel::WARNING: return "😿 Concerned";
+        case AlertLevel::CRITICAL: return "🙀 Stressed!";
+        default: return "😐 Neutral";
+    }
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  50/54: src/display/ConsoleDisplay.cpp                                    │
+│ 📁 Path: src/display                                                        │
+│ 📊 Size: 1,938 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#include "display/ConsoleDisplay.h"
+
+bool ConsoleDisplay::initialize() {
+    Serial.println("🖥️ Initializing Console Display...");
+    printCatHeader();
+    Serial.println("✅ Console Display initialized");
+    return true;
+}
+
+void ConsoleDisplay::showSensorData(const SensorDataBase& data) {
+    // Show uptime
+    uint32_t uptime = millis() / 1000;
+    Serial.printf("⏰ Uptime: %02d:%02d:%02d\n", 
+                 (int)(uptime/3600), 
+                 (int)((uptime%3600)/60), 
+                 (int)(uptime%60));
+    
+    // Use the sensor's toString method
+    Serial.println("📊 " + data.toString());
+    
+    // Show alert level and cat mood
+    AlertLevel level = data.getAlertLevel();
+    Serial.println("🐱 Cat Mood: " + getCatMood(level));
+    
+    Serial.println();
+}
+
+void ConsoleDisplay::showMessage(const String& message) {
+    Serial.println("📢 " + message);
+}
+
+void ConsoleDisplay::showError(const String& error) {
+    Serial.println("❌ ERROR: " + error);
+}
+
+void ConsoleDisplay::printCatHeader() {
+    Serial.println("╔════════════════════════════════╗");
+    Serial.println("║        🐱 COTOMETER 🐱         ║");
+    Serial.println("║     Cat Air Quality Monitor    ║");
+    Serial.println("╚════════════════════════════════╝");
+}
+
+void ConsoleDisplay::printSeparator() {
+    Serial.println("╠════════════════════════════════╣");
+}
+
+String ConsoleDisplay::getCatMood(AlertLevel level) {
+    switch (level) {
+        case AlertLevel::NONE: return "😸 Very Happy!";
+        case AlertLevel::INFO: return "😺 Content";
+        case AlertLevel::WARNING: return "😿 Concerned";
+        case AlertLevel::CRITICAL: return "🙀 Stressed!";
+        default: return "😐 Neutral";
+    }
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  51/54: src/display/SSD1351Display.cpp                                    │
+│ 📁 Path: src/display                                                        │
+│ 📊 Size: 11,580 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+#include "display/SSD1351Display.h"
+
+SSD1351Display::SSD1351Display() 
+    : display(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CS_PIN, DC_PIN, RST_PIN) {
+}
+
+bool SSD1351Display::initialize() {
+    Serial.println("🖥️ Initializing SSD1351 OLED display...");
+    
+    // Initialize SPI
+    SPI.begin(SCLK_PIN, -1, MOSI_PIN, CS_PIN);
+    Serial.printf("📡 SPI initialized: SCK=%d, MOSI=%d, CS=%d\n", SCLK_PIN, MOSI_PIN, CS_PIN);
+    
+    // Initialize display - begin() returns void, so we just call it
+    display.begin();
+    
+    // Test if display is working by clearing screen
+    display.fillScreen(BLACK);
+    display.setTextColor(WHITE);
+    display.setTextSize(1);
+    display.setCursor(20, 50);
+    display.println("CoToMeter");
+    display.setCursor(30, 65);
+    display.println("Starting...");
+    
+    Serial.println("✅ SSD1351 display ready");
+    return true;  // Assume success since begin() doesn't return status
+}
+
+void SSD1351Display::showSensorData(const SensorDataBase& data) {
+    display.fillScreen(BLACK);
+    
+    // Show header with timestamp
+    display.setTextColor(WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.print("🐱 CoToMeter ");
+    display.print(millis() / 1000);
+    display.println("s");
+    
+    // Draw separator line
+    display.drawLine(0, 10, SCREEN_WIDTH, 10, WHITE);
+    
+    // Get alert level for cat mood
+    AlertLevel level = data.getAlertLevel();
+    
+    // Draw cat face in top right corner
+    drawCatFace(level, 95, 25);
+    
+    // Display readings based on sensor type
+    display.setTextSize(1);
+    int yPos = 15;
+    
+    if (data.getType() == SensorType::CO2_TEMP_HUMIDITY) {
+        const CO2SensorData* co2Data = static_cast<const CO2SensorData*>(&data);
+        
+        // CO2 reading (prominent)
+        display.setTextColor(getCO2Color(co2Data->co2));
+        display.setTextSize(1);
+        display.setCursor(0, yPos);
+        display.printf("CO2: %4.0f ppm", co2Data->co2);
+        yPos += 12;
+        
+        // SCD41 Temperature
+        display.setTextColor(ORANGE);
+        display.setTextSize(1);
+        display.setCursor(0, yPos);
+        display.printf("T1: %4.1fC (SCD41)", co2Data->temperature);
+        yPos += 10;
+        
+        // SCD41 Humidity  
+        display.setTextColor(CYAN);
+        display.setCursor(0, yPos);
+        display.printf("H1: %4.1f%% (SCD41)", co2Data->humidity);
+        yPos += 12;
+        
+        // Placeholder for VOC (if we had combined data)
+        display.setTextColor(YELLOW);
+        display.setCursor(0, yPos);
+        display.print("VOC: Waiting...");
+        yPos += 10;
+        display.setTextColor(ORANGE);
+        display.setCursor(0, yPos);
+        display.print("T2: Waiting...");
+        yPos += 10;
+        display.setTextColor(CYAN);
+        display.setCursor(0, yPos);
+        display.print("H2: Waiting...");
+        
+    } else if (data.getType() == SensorType::VOC_GAS) {
+        const VOCSensorData* vocData = static_cast<const VOCSensorData*>(&data);
+        
+        // Placeholder for CO2
+        display.setTextColor(WHITE);
+        display.setCursor(0, yPos);
+        display.print("CO2: Waiting...");
+        yPos += 12;
+        
+        // BME688 Temperature
+        display.setTextColor(ORANGE);
+        display.setCursor(0, yPos);
+        display.printf("T2: %4.1fC (BME688)", vocData->temperature);
+        yPos += 10;
+        
+        // BME688 Humidity
+        display.setTextColor(CYAN);
+        display.setCursor(0, yPos);
+        display.printf("H2: %4.1f%% (BME688)", vocData->humidity);
+        yPos += 12;
+        
+        // VOC reading
+        display.setTextColor(getVOCColor(vocData->vocEstimate));
+        display.setCursor(0, yPos);
+        display.printf("VOC: %5.1f ppb", vocData->vocEstimate);
+        yPos += 10;
+        
+        // Pressure
+        display.setTextColor(BLUE);
+        display.setCursor(0, yPos);
+        display.printf("P: %4.0fhPa", vocData->pressure / 100.0);
+        yPos += 10;
+        
+        // Gas sensor status
+        display.setTextColor(vocData->heaterStable ? GREEN : RED);
+        display.setCursor(0, yPos);
+        display.print(vocData->heaterStable ? "Gas: Stable" : "Gas: Warming");
+    }
+    
+    // Show overall status at bottom
+    display.setTextColor(getAlertColor(level));
+    display.setCursor(0, 118);
+    switch (level) {
+        case AlertLevel::NONE: display.print("Air: Excellent"); break;
+        case AlertLevel::INFO: display.print("Air: Good"); break;
+        case AlertLevel::WARNING: display.print("Air: Poor"); break;
+        case AlertLevel::CRITICAL: display.print("Air: Bad!"); break;
+        default: display.print("Air: Unknown"); break;
+    }
+}
+
+// New method to show combined data from both sensors
+void SSD1351Display::showCombinedSensorData(const CO2SensorData* co2Data, const VOCSensorData* vocData) {
+    display.fillScreen(BLACK);
+    
+    // Header
+    display.setTextColor(WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.print("🐱 CoToMeter ");
+    display.print(millis() / 1000);
+    display.println("s");
+    
+    // Draw separator line
+    display.drawLine(0, 10, SCREEN_WIDTH, 10, WHITE);
+    
+    // Determine overall alert level
+    AlertLevel maxLevel = AlertLevel::NONE;
+    if (co2Data && co2Data->isValid()) {
+        AlertLevel co2Level = co2Data->getAlertLevel();
+        if (co2Level > maxLevel) maxLevel = co2Level;
+    }
+    if (vocData && vocData->isValid()) {
+        AlertLevel vocLevel = vocData->getAlertLevel();
+        if (vocLevel > maxLevel) maxLevel = vocLevel;
+    }
+    
+    // Draw cat face
+    drawCatFace(maxLevel, 95, 25);
+    
+    int yPos = 15;
+    
+    // CO2 from SCD41
+    if (co2Data && co2Data->isValid()) {
+        display.setTextColor(getCO2Color(co2Data->co2));
+        display.setTextSize(1);
+        display.setCursor(0, yPos);
+        display.printf("CO2: %4.0f ppm", co2Data->co2);
+    } else {
+        display.setTextColor(RED);
+        display.setCursor(0, yPos);
+        display.print("CO2: No data");
+    }
+    yPos += 12;
+    
+    // VOC from BME688
+    if (vocData && vocData->isValid()) {
+        display.setTextColor(getVOCColor(vocData->vocEstimate));
+        display.setCursor(0, yPos);
+        display.printf("VOC: %5.1f ppb", vocData->vocEstimate);
+    } else {
+        display.setTextColor(RED);
+        display.setCursor(0, yPos);
+        display.print("VOC: No data");
+    }
+    yPos += 12;
+    
+    // Temperature comparison
+    display.setTextColor(ORANGE);
+    display.setCursor(0, yPos);
+    if (co2Data && co2Data->isValid()) {
+        display.printf("T1: %4.1fC", co2Data->temperature);
+    } else {
+        display.print("T1: --.-C");
+    }
+    yPos += 10;
+    
+    display.setCursor(0, yPos);
+    if (vocData && vocData->isValid()) {
+        display.printf("T2: %4.1fC", vocData->temperature);
+    } else {
+        display.print("T2: --.-C");
+    }
+    yPos += 12;
+    
+    // Humidity comparison
+    display.setTextColor(CYAN);
+    display.setCursor(0, yPos);
+    if (co2Data && co2Data->isValid()) {
+        display.printf("H1: %4.1f%%", co2Data->humidity);
+    } else {
+        display.print("H1: --.-%");
+    }
+    yPos += 10;
+    
+    display.setCursor(0, yPos);
+    if (vocData && vocData->isValid()) {
+        display.printf("H2: %4.1f%%", vocData->humidity);
+    } else {
+        display.print("H2: --.-%");
+    }
+    yPos += 12;
+    
+    // Pressure from BME688
+    if (vocData && vocData->isValid()) {
+        display.setTextColor(BLUE);
+        display.setCursor(0, yPos);
+        display.printf("P: %4.0fhPa", vocData->pressure / 100.0);
+    }
+    
+    // Overall air quality at bottom
+    display.setTextColor(getAlertColor(maxLevel));
+    display.setCursor(0, 118);
+    switch (maxLevel) {
+        case AlertLevel::NONE: display.print("Air: Excellent"); break;
+        case AlertLevel::INFO: display.print("Air: Good"); break;
+        case AlertLevel::WARNING: display.print("Air: Poor"); break;
+        case AlertLevel::CRITICAL: display.print("Air: Bad!"); break;
+        default: display.print("Air: Unknown"); break;
+    }
+}
+
+void SSD1351Display::showMessage(const String& message) {
+    display.fillScreen(BLACK);
+    display.setTextColor(WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("Message:");
+    display.setTextColor(CYAN);
+    display.setCursor(0, 20);
+    display.println(message);
+}
+
+void SSD1351Display::showError(const String& error) {
+    display.fillScreen(BLACK);
+    display.setTextColor(RED);
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("ERROR:");
+    display.setTextColor(WHITE);
+    display.setCursor(0, 20);
+    display.println(error);
+    
+    // Draw sad cat
+    drawCatFace(AlertLevel::CRITICAL, 64, 50);
+}
+
+uint16_t SSD1351Display::getAlertColor(AlertLevel level) {
+    switch (level) {
+        case AlertLevel::NONE: return GREEN;
+        case AlertLevel::INFO: return YELLOW;
+        case AlertLevel::WARNING: return ORANGE;
+        case AlertLevel::CRITICAL: return RED;
+        default: return WHITE;
+    }
+}
+
+uint16_t SSD1351Display::getCO2Color(float co2) {
+    if (co2 < 600) return GREEN;        // Excellent
+    if (co2 < 800) return YELLOW;       // Good  
+    if (co2 < 1200) return ORANGE;      // Fair
+    return RED;                         // Poor
+}
+
+uint16_t SSD1351Display::getVOCColor(float voc) {
+    if (voc < 50) return GREEN;         // Clean
+    if (voc < 100) return YELLOW;       // Acceptable
+    if (voc < 200) return ORANGE;       // Moderate
+    return RED;                         // High
+}
+
+void SSD1351Display::drawCatFace(AlertLevel level, int centerX, int centerY) {
+    uint16_t color = getAlertColor(level);
+    int radius = 12;
+    
+    // Cat head (circle)
+    display.drawCircle(centerX, centerY, radius, color);
+    
+    // Ears (triangles)
+    display.drawLine(centerX - 8, centerY - 8, centerX - 3, centerY - 15, color);
+    display.drawLine(centerX - 3, centerY - 15, centerX + 2, centerY - 8, color);
+    display.drawLine(centerX + 2, centerY - 8, centerX + 8, centerY - 15, color);
+    display.drawLine(centerX + 8, centerY - 15, centerX + 13, centerY - 8, color);
+    
+    // Eyes
+    if (level == AlertLevel::CRITICAL) {
+        // X eyes for critical
+        display.drawLine(centerX - 4, centerY - 3, centerX - 1, centerY, color);
+        display.drawLine(centerX - 1, centerY - 3, centerX - 4, centerY, color);
+        display.drawLine(centerX + 1, centerY - 3, centerX + 4, centerY, color);
+        display.drawLine(centerX + 4, centerY - 3, centerX + 1, centerY, color);
+    } else {
+        // Normal eyes
+        display.fillCircle(centerX - 3, centerY - 2, 1, color);
+        display.fillCircle(centerX + 3, centerY - 2, 1, color);
+    }
+    
+    // Mouth based on alert level
+    if (level == AlertLevel::NONE) {
+        // Happy mouth (smile)
+        display.drawCircle(centerX, centerY + 2, 4, color);
+        display.drawLine(centerX - 3, centerY + 1, centerX + 3, centerY + 1, BLACK); // Cover top half
+    } else if (level >= AlertLevel::WARNING) {
+        // Sad mouth (frown)
+        display.drawCircle(centerX, centerY + 7, 4, color);
+        display.drawLine(centerX - 3, centerY + 6, centerX + 3, centerY + 6, BLACK); // Cover bottom half
+    } else {
+        // Neutral mouth
+        display.drawLine(centerX - 3, centerY + 3, centerX + 3, centerY + 3, color);
+    }
+    
+    // Whiskers
+    display.drawLine(centerX - 15, centerY, centerX - 9, centerY, color);
+    display.drawLine(centerX + 9, centerY, centerX + 15, centerY, color);
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  52/54: src/main.cpp                                                      │
+│ 📁 Path: src                                                                │
+│ 📊 Size: 1,885 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+
+#include <Arduino.h>
+#include "CoToMeterController.h"
+
+CoToMeterController controller;
+
+void setup() {
+    Serial.begin(115200);
+    delay(2000); // Give time for Serial to initialize
+    
+    Serial.println();
+    Serial.println("╔═══════════════════════════════════════════════════════╗");
+    Serial.println("║                🐱 COTOMETER v2.0 🐱                   ║");
+    Serial.println("║              Dual Sensor + OLED Monitor               ║");
+    Serial.println("║                                                       ║");
+    Serial.println("║  Sensors: SCD41 (I2C) + BME688 (SPI)                ║");
+    Serial.println("║  Display: SSD1351 OLED 128x128 (SPI)                 ║");
+    Serial.println("║  Measures: CO2, VOC, Temperature, Humidity, Pressure  ║");
+    Serial.println("╚═══════════════════════════════════════════════════════╝");
+    Serial.println();
+    
+    if (!controller.initialize()) {
+        Serial.println("❌ Controller initialization failed!");
+        Serial.println("💡 Check your connections:");
+        Serial.println("   SCD41:   SDA=21, SCL=22, VDD=3.3V, GND=GND");
+        Serial.println("   BME688:  SCK=18, MISO=19, MOSI=23, CS=4, VDD=3.3V, GND=GND");
+        Serial.println("   SSD1351: SCK=18, MOSI=23, CS=5, DC=16, RST=17, VDD=3.3V, GND=GND");
+        Serial.println("🔄 System will restart in 10 seconds...");
+        delay(10000);
+        ESP.restart();
+    }
+    
+    Serial.println("🎉 System ready! Starting continuous monitoring...");
+    Serial.println("📱 OLED display will show real-time sensor data with cat mood!");
+}
+
+void loop() {
+    controller.loop();
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  53/54: src/sensors/BME688Sensor.cpp                                      │
+│ 📁 Path: src/sensors                                                        │
+│ 📊 Size: 11,098 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * sensors/BME688Sensor.cpp
+ * BME688 VOC/Gas sensor implementation using official Bosch BME68x library
+ */
+
+#include "sensors/BME688Sensor.h"
+
+BME688Sensor::BME688Sensor(uint8_t address, uint8_t csPin) 
+    : initialized(false)
+    , i2cAddress(address)
+    , csPin(csPin)
+    , temperature(0.0)
+    , humidity(0.0)
+    , pressure(0.0)
+    , gasResistance(0.0)
+    , vocEstimate(0.0)
+    , gasHeaterEnabled(true)
+    , heaterTemp(320)      // Default: 320°C
+    , heaterDuration(150)  // Default: 150ms
+{
+    currentData = VOCSensorData("BME688");
+    lastError = "";
+    
+    // DON'T configure CS pin here - do it in initialize()
+}
+
+bool BME688Sensor::initialize() {
+    Serial.println("🔧 Initializing BME688 sensor via SPI...");
+    
+    // Configure CS pin for SPI mode (controlled LOW/HIGH)
+    pinMode(csPin, OUTPUT);
+    digitalWrite(csPin, HIGH);  // CS HIGH = not selected initially
+    Serial.printf("🔧 CS pin %d configured for SPI mode\n", csPin);
+    
+    // Initialize SPI
+    SPI.begin(18, 19, 23, csPin); // SCK=18, MISO=19, MOSI=23, CS=csPin
+    SPI.setFrequency(1000000);    // 1MHz
+    SPI.setDataMode(SPI_MODE0);   // CPOL=0, CPHA=0
+    Serial.println("🔧 SPI bus initialized: SCK=18, MISO=19, MOSI=23");
+    
+    delay(100);
+    
+    // Initialize BME688 with SPI
+    bme688.begin(csPin, SPI);
+    
+    // Check if sensor is responding
+    if (bme688.checkStatus() == BME68X_ERROR) {
+        lastError = "BME688 not found via SPI (CS pin " + String(csPin) + ")";
+        Serial.println("❌ " + lastError);
+        Serial.printf("💡 Check SPI wiring: SCK=18, MISO=19, MOSI=23, CS=%d\n", csPin);
+        return false;
+    }
+    
+    Serial.printf("✅ BME688 found via SPI (CS pin %d)\n", csPin);
+    
+    // Get sensor info
+    uint32_t uniqueId = bme688.getUniqueId();
+    Serial.printf("📟 BME688 Unique ID: 0x%08X\n", uniqueId);
+    
+    // Configure basic sensor settings
+    if (!configureBasicSettings()) {
+        lastError = "Failed to configure basic settings";
+        return false;
+    }
+    
+    // Configure gas heater
+    if (!configureGasHeater()) {
+        lastError = "Failed to configure gas heater";
+        return false;
+    }
+    
+    // Set forced mode for on-demand measurements
+    bme688.setOpMode(BME68X_FORCED_MODE);
+    
+    initialized = true;
+    Serial.println("✅ BME688 sensor initialized successfully via SPI");
+    
+    return true;
+}
+
+bool BME688Sensor::configureBasicSettings() {
+    // Set oversampling rates
+    // Temperature: 2x, Pressure: 16x, Humidity: 1x (good balance of accuracy vs speed)
+    bme688.setTPH(BME68X_OS_2X, BME68X_OS_16X, BME68X_OS_1X);
+    
+    // Set IIR filter coefficient (reduces noise)
+    bme688.setFilter(BME68X_FILTER_SIZE_3);
+    
+    // Set ambient temperature for better accuracy
+    bme688.setAmbientTemp(25); // Assume 25°C ambient
+    
+    Serial.println("🔧 Basic settings configured:");
+    Serial.println("   - Temperature oversampling: 2x");
+    Serial.println("   - Pressure oversampling: 16x");
+    Serial.println("   - Humidity oversampling: 1x");
+    Serial.println("   - IIR filter: coefficient 4");
+    
+    return true;
+}
+
+bool BME688Sensor::configureGasHeater() {
+    if (gasHeaterEnabled) {
+        // Set heater temperature and duration for VOC measurements
+        bme688.setHeaterProf(heaterTemp, heaterDuration);
+        
+        Serial.printf("🔥 Gas heater configured: %d°C for %dms\n", heaterTemp, heaterDuration);
+    } else {
+        Serial.println("🔥 Gas heater disabled");
+    }
+    
+    return true;
+}
+
+bool BME688Sensor::readData() {
+    if (!initialized) {
+        lastError = "Sensor not initialized";
+        return false;
+    }
+    
+    // Set forced mode to trigger measurement
+    bme688.setOpMode(BME68X_FORCED_MODE);
+    
+    // Wait for measurement to complete
+    uint32_t measDuration = bme688.getMeasDur(BME68X_FORCED_MODE);
+    delay(measDuration / 1000); // Convert microseconds to milliseconds
+    
+    // Check if data is available
+    uint8_t nFieldsLeft = bme688.fetchData();
+    
+    if (nFieldsLeft == 0) {
+        lastError = "No data available from BME688";
+        return false;
+    }
+    
+    // Get the data
+    bme68xData data;
+    bme688.getData(data);
+    
+    // Validate readings
+    if (!validateReadings(data)) {
+        lastError = "Invalid sensor readings";
+        return false;
+    }
+    
+    // Store the readings
+    temperature = data.temperature;
+    humidity = data.humidity;
+    pressure = data.pressure;
+    gasResistance = data.gas_resistance;
+    
+    // Calculate VOC estimate from gas resistance
+    vocEstimate = calculateVOCEstimate(gasResistance, temperature, humidity);
+    
+    // Store readings in VOC sensor data structure
+    currentData.temperature = temperature;
+    currentData.humidity = humidity;
+    currentData.pressure = pressure;
+    currentData.gasResistance = gasResistance;
+    currentData.vocEstimate = vocEstimate;
+    currentData.heaterStable = (data.status & BME68X_HEAT_STAB_MSK) != 0;
+    currentData.gasValid = (data.status & BME68X_GASM_VALID_MSK) != 0;
+    currentData.updateTimestamp();
+    currentData.setValid(true);
+    
+    lastError = "";
+    
+    // Debug output
+    // Serial.printf("📊 BME688 Reading - Temp: %.1f°C, Humidity: %.1f%%, Gas: %.0fΩ, VOC: %.1fppb\n", 
+    //               temperature, humidity, gasResistance, vocEstimate);
+    
+    return true;
+}
+
+bool BME688Sensor::validateReadings(const bme68xData& data) {
+    // Check status flags
+    if (gasHeaterEnabled && !(data.status & BME68X_GASM_VALID_MSK)) {
+        lastError = "Gas measurement not valid";
+        return false;
+    }
+    
+    if (gasHeaterEnabled && !(data.status & BME68X_HEAT_STAB_MSK)) {
+        Serial.println("⚠️  Warning: Heater not stable");
+        // Don't fail, just warn
+    }
+    
+    // Validate temperature range
+    if (data.temperature < -40 || data.temperature > 85) {
+        lastError = "Temperature out of range: " + String(data.temperature) + "°C";
+        return false;
+    }
+    
+    // Validate humidity range
+    if (data.humidity < 0 || data.humidity > 100) {
+        lastError = "Humidity out of range: " + String(data.humidity) + "%";
+        return false;
+    }
+    
+    // Validate pressure range (if measuring pressure)
+    if (data.pressure < 30000 || data.pressure > 110000) {
+        lastError = "Pressure out of range: " + String(data.pressure) + "Pa";
+        return false;
+    }
+    
+    return true;
+}
+
+float BME688Sensor::calculateVOCEstimate(float gasRes, float temp, float hum) {
+    // Simple VOC estimation based on gas resistance
+    // This is a basic algorithm - for production use, consider Bosch BSEC library
+    
+    if (gasRes <= 0) return 0.0;
+    
+    // Baseline resistance (clean air) - should be calibrated for your environment
+    const float baselineResistance = 50000.0; // 50kΩ typical for clean air
+    
+    // Calculate ratio
+    float ratio = baselineResistance / gasRes;
+    
+    // Convert to approximate VOC concentration (very rough estimation)
+    float voc = 0.0;
+    
+    if (ratio > 1.0) {
+        // Higher resistance = cleaner air, lower VOC
+        voc = (ratio - 1.0) * 50.0; // Scale factor
+    } else {
+        // Lower resistance = more VOCs
+        voc = (1.0 - ratio) * 200.0; // Different scale for contamination
+    }
+    
+    // Apply temperature and humidity compensation (simplified)
+    voc = voc * (1.0 + (temp - 25.0) * 0.01); // 1% per degree from 25°C
+    voc = voc * (1.0 + (hum - 50.0) * 0.005); // 0.5% per % RH from 50%
+    
+    return max(0.0f, voc); // Ensure non-negative
+}
+
+SensorDataBase* BME688Sensor::getCurrentData() {
+    return &currentData;
+}
+
+bool BME688Sensor::isReady() {
+    if (!initialized) return false;
+    
+    // Check if measurement is complete
+    uint8_t opMode = bme688.getOpMode();
+    return (opMode == BME68X_SLEEP_MODE); // Ready when not measuring
+}
+
+String BME688Sensor::getLastError() {
+    return lastError;
+}
+
+// BME688-specific getters
+float BME688Sensor::getTemperature() const { return temperature; }
+float BME688Sensor::getHumidity() const { return humidity; }
+float BME688Sensor::getPressure() const { return pressure; }
+float BME688Sensor::getGasResistance() const { return gasResistance; }
+float BME688Sensor::getVOCEstimate() const { return vocEstimate; }
+
+bool BME688Sensor::setI2CAddress(uint8_t address) {
+    if (address != 0x76 && address != 0x77) {
+        lastError = "Invalid I2C address. Use 0x76 or 0x77";
+        return false;
+    }
+    i2cAddress = address;
+    return true;
+}
+
+uint8_t BME688Sensor::getI2CAddress() const {
+    return i2cAddress;
+}
+
+bool BME688Sensor::setCSPin(uint8_t pin) {
+    csPin = pin;
+    if (initialized) {
+        pinMode(csPin, OUTPUT);
+        digitalWrite(csPin, HIGH);  // Keep I2C mode
+        Serial.printf("🔧 CS pin changed to %d\n", csPin);
+    }
+    return true;
+}
+
+uint8_t BME688Sensor::getCSPin() const {
+    return csPin;
+}
+
+bool BME688Sensor::enableGasSensor(bool enable) {
+    gasHeaterEnabled = enable;
+    return configureGasHeater();
+}
+
+bool BME688Sensor::setHeaterProfile(uint16_t temperature, uint16_t duration) {
+    heaterTemp = temperature;
+    heaterDuration = duration;
+    
+    if (initialized) {
+        bme688.setHeaterProf(heaterTemp, heaterDuration);
+        Serial.printf("🔥 Heater profile updated: %d°C for %dms\n", heaterTemp, heaterDuration);
+    }
+    
+    return true;
+}
+
+bool BME688Sensor::softReset() {
+    if (!initialized) return false;
+    
+    bme688.softReset();
+    delay(10); // Wait for reset
+    
+    // Reconfigure after reset
+    return configureBasicSettings() && configureGasHeater();
+}
+
+String BME688Sensor::getSensorVariant() {
+    // This would need to be implemented based on variant ID reading
+    // For now, return a generic string
+    return "BME688";
+}
+
+bool BME688Sensor::performSelfTest() {
+    // BME688 doesn't have a built-in self-test like SCD41
+    // We can do a basic functionality test
+    if (!initialized) return false;
+    
+    // Try to read data
+    bool testResult = readData();
+    
+    if (testResult) {
+        Serial.println("✅ BME688 self-test passed");
+    } else {
+        Serial.println("❌ BME688 self-test failed: " + lastError);
+    }
+    
+    return testResult;
+}
+
+uint32_t BME688Sensor::getUniqueId() {
+    if (!initialized) return 0;
+    return bme688.getUniqueId();
+}
+
+// // Helper namespace implementation
+// namespace BME688Utils {
+//     String operationModeToString(uint8_t mode) {
+//         switch (mode) {
+//             case BME68X_SLEEP_MODE: return "Sleep";
+//             case BME68X_FORCED_MODE: return "Forced";
+//             case BME68X_PARALLEL_MODE: return "Parallel";
+//             case BME68X_SEQUENTIAL_MODE: return "Sequential";
+//             default: return "Unknown";
+//         }
+//     }
+    
+//     AlertLevel vocToAlertLevel(float vocEstimate) {
+//         if (vocEstimate < 50) return AlertLevel::GOOD;
+//         if (vocEstimate < 100) return AlertLevel::FAIR;
+//         if (vocEstimate < 200) return AlertLevel::POOR;
+//         return AlertLevel::BAD;
+//     }
+// }
+
+────────────────────────────────────────────────────────────────────────────────
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📄 FILE  54/54: src/sensors/SCD41Sensor.cpp                                       │
+│ 📁 Path: src/sensors                                                        │
+│ 📊 Size: 14,249 bytes                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+/*
+ * sensors/SCD41Sensor.cpp
+ * Implementation using the real Sensirion I2C SCD4x library v1.1.0
+ */
+
+#include "sensors/SCD41Sensor.h"
+#include <SensirionI2cScd4x.h>
+
+// Create sensor instance
+SensirionI2cScd4x scd4x;
+
+SCD41Sensor::SCD41Sensor() 
+    : initialized(false)
+    , currentData("SCD41")  // Initialize CO2SensorData with sensor ID
+{
+    lastError = "";
+}
+
+bool SCD41Sensor::initialize() {
+    Serial.println("🔧 Initializing SCD41 sensor...");
+    
+    // Initialize I2C communication
+    Wire.begin(21, 22); // SDA=21, SCL=22 for ESP32-S3
+    Wire.setClock(100000); // 100kHz for reliability
+    
+    // Initialize sensor with I2C address 0x62
+    scd4x.begin(Wire, SCD41_I2C_ADDR_62);
+    
+    // Stop potentially running measurement
+    int16_t error = scd4x.stopPeriodicMeasurement();
+    if (error) {
+        Serial.printf("⚠️  Warning stopping measurement: %d\n", error);
+    }
+    delay(1000);
+    
+    // Get sensor serial number for verification
+    uint64_t serialNumber;
+    error = scd4x.getSerialNumber(serialNumber);
+    if (error) {
+        lastError = "Failed to get serial number. Check connections!";
+        Serial.println("❌ SCD41 initialization failed: " + lastError);
+        Serial.printf("💡 Error code: %d\n", error);
+        return false;
+    }
+    
+    Serial.printf("✅ SCD41 Serial: 0x%016llX\n", serialNumber);
+    
+    // Check sensor variant
+    uint16_t variant;
+    error = scd4x.getSensorVariantRaw(variant);
+    if (error == 0) {
+        switch (variant & SCD4X_SENSOR_VARIANT_MASK) {
+            case SCD4X_SENSOR_VARIANT_SCD40:
+                Serial.println("📡 Detected: SCD40");
+                break;
+            case SCD4X_SENSOR_VARIANT_SCD41:
+                Serial.println("📡 Detected: SCD41");
+                break;
+            case SCD4X_SENSOR_VARIANT_SCD42:
+                Serial.println("📡 Detected: SCD42");
+                break;
+            case SCD4X_SENSOR_VARIANT_SCD43:
+                Serial.println("📡 Detected: SCD43");
+                break;
+            default:
+                Serial.printf("📡 Detected: Unknown variant (0x%04X)\n", variant);
+                break;
+        }
+    }
+    
+    // Enable automatic self-calibration by default
+    error = scd4x.setAutomaticSelfCalibrationEnabled(1);
+    if (error) {
+        Serial.printf("⚠️  Warning: Could not enable auto-calibration: %d\n", error);
+    } else {
+        Serial.println("🔄 Automatic self-calibration enabled");
+    }
+    
+    // Start periodic measurement
+    error = scd4x.startPeriodicMeasurement();
+    if (error) {
+        lastError = "Failed to start measurement";
+        Serial.println("❌ SCD41 measurement start failed: " + lastError);
+        Serial.printf("💡 Error code: %d\n", error);
+        return false;
+    }
+    
+    initialized = true;
+    Serial.println("✅ SCD41 sensor initialized successfully");
+    
+    return true;
+}
+
+bool SCD41Sensor::readData() {
+    if (!initialized) {
+        lastError = "Sensor not initialized";
+        return false;
+    }
+    
+    // Check if data is ready
+    bool dataReady = false;
+    int16_t error = scd4x.getDataReadyStatus(dataReady);
+    if (error) {
+        lastError = "Error checking data ready flag";
+        Serial.printf("❌ Data ready check error: %d\n", error);
+        return false;
+    }
+    
+    if (!dataReady) {
+        lastError = "Data not ready yet";
+        return false;
+    }
+    
+    // Read measurement
+    uint16_t co2;
+    float temperature;
+    float humidity;
+    
+    error = scd4x.readMeasurement(co2, temperature, humidity);
+    if (error) {
+        lastError = "Error reading measurement";
+        Serial.printf("❌ Read measurement error: %d\n", error);
+        return false;
+    }
+    
+    // Validate readings
+    if (co2 == 0) {
+        lastError = "Invalid CO2 reading (0 ppm)";
+        return false;
+    }
+    
+    // Update sensor data
+    currentData.co2 = co2;
+    currentData.temperature = temperature;
+    currentData.humidity = humidity;
+    currentData.updateTimestamp();
+    currentData.setValid(true);
+    
+    lastError = "";
+    
+    return true;
+}
+
+SensorDataBase* SCD41Sensor::getCurrentData() {
+    return &currentData;  // Return pointer to base class
+}
+
+CO2SensorData SCD41Sensor::getCO2Data() {
+    return currentData;  // Return actual CO2 data
+}
+
+bool SCD41Sensor::isReady() {
+    if (!initialized) {
+        return false;
+    }
+    
+    bool dataReady = false;
+    int16_t error = scd4x.getDataReadyStatus(dataReady);
+    return (error == 0) && dataReady;
+}
+
+String SCD41Sensor::getLastError() {
+    return lastError;
+}
+
+bool SCD41Sensor::performForcedRecalibration(uint16_t targetCO2) {
+    if (!initialized) {
+        lastError = "Sensor not initialized";
+        return false;
+    }
+    
+    Serial.printf("🔧 Performing forced recalibration to %d ppm...\n", targetCO2);
+    
+    // Stop measurement for calibration
+    int16_t error = scd4x.stopPeriodicMeasurement();
+    if (error) {
+        lastError = "Failed to stop measurement for calibration";
+        return false;
+    }
+    delay(500);
+    
+    // Perform calibration
+    uint16_t frcCorrection;
+    error = scd4x.performForcedRecalibration(targetCO2, frcCorrection);
+    if (error) {
+        lastError = "Forced recalibration failed";
+        Serial.printf("❌ Calibration error: %d\n", error);
+        // Restart measurement even if calibration failed
+        scd4x.startPeriodicMeasurement();
+        return false;
+    }
+    
+    // Check if calibration was successful (0xFFFF indicates failure)
+    if (frcCorrection == 0xFFFF) {
+        lastError = "Calibration failed - sensor not ready";
+        Serial.println("❌ Calibration failed - sensor was not operated long enough");
+        scd4x.startPeriodicMeasurement();
+        return false;
+    }
+    
+    // Convert correction value (subtract 0x8000 to get signed value)
+    int16_t correctionPpm = frcCorrection - 0x8000;
+    Serial.printf("✅ Calibration successful. Correction: %d ppm\n", correctionPpm);
+    
+    // Restart measurement
+    error = scd4x.startPeriodicMeasurement();
+    if (error) {
+        lastError = "Failed to restart measurement after calibration";
+        return false;
+    }
+    
+    return true;
+}
+
+bool SCD41Sensor::setAutomaticSelfCalibration(bool enabled) {
+    if (!initialized) {
+        lastError = "Sensor not initialized";
+        return false;
+    }
+    
+    // Stop measurement to change settings
+    int16_t error = scd4x.stopPeriodicMeasurement();
+    if (error) {
+        lastError = "Failed to stop measurement";
+        return false;
+    }
+    delay(500);
+    
+    error = scd4x.setAutomaticSelfCalibrationEnabled(enabled ? 1 : 0);
+    if (error) {
+        lastError = enabled ? "Failed to enable auto-calibration" : "Failed to disable auto-calibration";
+        Serial.printf("❌ Error setting auto-calibration: %d\n", error);
+        scd4x.startPeriodicMeasurement(); // Restart measurement
+        return false;
+    }
+    
+    Serial.println(enabled ? "🔄 Automatic self-calibration enabled" : "⏸️ Automatic self-calibration disabled");
+    
+    // Restart measurement
+    error = scd4x.startPeriodicMeasurement();
+    if (error) {
+        lastError = "Failed to restart measurement";
+        return false;
+    }
+    
+    return true;
+}
+
+bool SCD41Sensor::getAutomaticSelfCalibration() {
+    if (!initialized) {
+        return false;
+    }
+    
+    // Stop measurement to read settings
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    uint16_t ascEnabled;
+    int16_t error = scd4x.getAutomaticSelfCalibrationEnabled(ascEnabled);
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    if (error) {
+        return false;
+    }
+    
+    return ascEnabled != 0;
+}
+
+bool SCD41Sensor::setSensorAltitude(uint16_t altitude) {
+    if (!initialized) {
+        return false;
+    }
+    
+    // Stop measurement to change settings
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    int16_t error = scd4x.setSensorAltitude(altitude);
+    bool success = (error == 0);
+    
+    if (success) {
+        Serial.printf("✅ Sensor altitude set to %d meters\n", altitude);
+    } else {
+        Serial.printf("❌ Failed to set altitude: %d\n", error);
+    }
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    return success;
+}
+
+bool SCD41Sensor::setTemperatureOffset(float offset) {
+    if (!initialized) {
+        return false;
+    }
+    
+    // Stop measurement to change settings
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    int16_t error = scd4x.setTemperatureOffset(offset);
+    bool success = (error == 0);
+    
+    if (success) {
+        Serial.printf("✅ Temperature offset set to %.1f°C\n", offset);
+    } else {
+        Serial.printf("❌ Failed to set temperature offset: %d\n", error);
+    }
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    return success;
+}
+
+bool SCD41Sensor::setAmbientPressure(uint32_t pressure) {
+    if (!initialized) {
+        return false;
+    }
+    
+    int16_t error = scd4x.setAmbientPressure(pressure);
+    bool success = (error == 0);
+    
+    if (success) {
+        Serial.printf("✅ Ambient pressure set to %lu Pa\n", pressure);
+    } else {
+        Serial.printf("❌ Failed to set ambient pressure: %d\n", error);
+    }
+    
+    return success;
+}
+
+bool SCD41Sensor::getSensorSerialNumber(uint64_t& serialNumber) {
+    if (!initialized) {
+        return false;
+    }
+    
+    // Stop measurement to read info
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    int16_t error = scd4x.getSerialNumber(serialNumber);
+    bool success = (error == 0);
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    return success;
+}
+
+bool SCD41Sensor::performSelfTest() {
+    if (!initialized) {
+        return false;
+    }
+    
+    Serial.println("🧪 Performing sensor self-test...");
+    
+    // Stop measurement for self-test
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    uint16_t sensorStatus;
+    int16_t error = scd4x.performSelfTest(sensorStatus);
+    
+    if (error) {
+        Serial.printf("❌ Self-test command failed: %d\n", error);
+        scd4x.startPeriodicMeasurement();
+        return false;
+    }
+    
+    bool testPassed = (sensorStatus == 0);
+    if (testPassed) {
+        Serial.println("✅ Self-test passed - sensor is functioning correctly");
+    } else {
+        Serial.printf("❌ Self-test failed - sensor status: 0x%04X\n", sensorStatus);
+    }
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    return testPassed;
+}
+
+bool SCD41Sensor::getSensorVariant(uint16_t& variant) {
+    if (!initialized) {
+        return false;
+    }
+    
+    // Stop measurement to read info
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    int16_t error = scd4x.getSensorVariantRaw(variant);
+    bool success = (error == 0);
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    return success;
+}
+
+bool SCD41Sensor::powerDown() {
+    if (!initialized) {
+        return false;
+    }
+    
+    Serial.println("💤 Putting sensor to sleep...");
+    
+    // Stop measurement first
+    int16_t error = scd4x.stopPeriodicMeasurement();
+    if (error) {
+        Serial.printf("❌ Failed to stop measurement: %d\n", error);
+        return false;
+    }
+    delay(500);
+    
+    // Power down (SCD41 only)
+    error = scd4x.powerDown();
+    if (error) {
+        Serial.printf("❌ Failed to power down: %d\n", error);
+        return false;
+    }
+    
+    Serial.println("✅ Sensor powered down");
+    return true;
+}
+
+bool SCD41Sensor::wakeUp() {
+    if (!initialized) {
+        return false;
+    }
+    
+    Serial.println("⏰ Waking up sensor...");
+    
+    // Wake up sensor (SCD41 only)
+    int16_t error = scd4x.wakeUp();
+    if (error) {
+        Serial.printf("❌ Failed to wake up: %d\n", error);
+        return false;
+    }
+    
+    delay(1000); // Give sensor time to wake up
+    
+    // Restart measurement
+    error = scd4x.startPeriodicMeasurement();
+    if (error) {
+        Serial.printf("❌ Failed to restart measurement: %d\n", error);
+        return false;
+    }
+    
+    Serial.println("✅ Sensor awakened and measurement restarted");
+    return true;
+}
+
+bool SCD41Sensor::measureSingleShot(uint16_t& co2, float& temp, float& humidity) {
+    if (!initialized) {
+        return false;
+    }
+    
+    // Use the convenience method that handles timing
+    int16_t error = scd4x.measureAndReadSingleShot(co2, temp, humidity);
+    if (error) {
+        lastError = "Single shot measurement failed";
+        Serial.printf("❌ Single shot error: %d\n", error);
+        return false;
+    }
+    
+    Serial.printf("📊 Single shot - CO2: %d ppm, Temp: %.1f°C, Humidity: %.1f%%\n", 
+                  co2, temp, humidity);
+    return true;
+}
+
+bool SCD41Sensor::persistSettings() {
+    if (!initialized) {
+        return false;
+    }
+    
+    Serial.println("💾 Persisting settings to EEPROM...");
+    
+    // Stop measurement to persist settings
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    int16_t error = scd4x.persistSettings();
+    bool success = (error == 0);
+    
+    if (success) {
+        Serial.println("✅ Settings saved to EEPROM");
+    } else {
+        Serial.printf("❌ Failed to persist settings: %d\n", error);
+    }
+    
+    // Restart measurement
+    scd4x.startPeriodicMeasurement();
+    
+    return success;
+}
+
+bool SCD41Sensor::performFactoryReset() {
+    if (!initialized) {
+        return false;
+    }
+    
+    Serial.println("🏭 Performing factory reset...");
+    
+    // Stop measurement for factory reset
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    
+    int16_t error = scd4x.performFactoryReset();
+    bool success = (error == 0);
+    
+    if (success) {
+        Serial.println("✅ Factory reset completed");
+        Serial.println("🔄 Reinitializing sensor...");
+        
+        // Reinitialize after factory reset
+        delay(1000);
+        initialized = false;
+        return initialize();
+    } else {
+        Serial.printf("❌ Factory reset failed: %d\n", error);
+        scd4x.startPeriodicMeasurement();
+    }
+    
+    return success;
+}
+
+────────────────────────────────────────────────────────────────────────────────
+
+================================================================================
+END OF CONCATENATED PROJECT FILES
+================================================================================
+Total files processed: 54
+Generated: 2025-09-19 13:42:27
